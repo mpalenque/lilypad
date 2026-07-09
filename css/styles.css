@@ -1,0 +1,229 @@
+@font-face {
+  font-family: 'ArialRoundedBold';
+  src: url('../assets/fonts/ArialRoundedBold.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #050506;
+  touch-action: none;
+  user-select: none;
+  font-family: 'ArialRoundedBold', sans-serif;
+}
+
+#stage {
+  position: fixed;
+  width: 1920px;
+  height: 1200px;
+  left: 50%;
+  top: 50%;
+  transform-origin: center center;
+  overflow: hidden;
+  background: #8BA5EB;
+}
+
+#camera, #gl, #ui {
+  position: absolute;
+  inset: 0;
+  width: 1920px;
+  height: 1200px;
+}
+
+#camera {
+  object-fit: cover;
+  z-index: 0;
+  background: #8BA5EB;
+}
+
+#gl {
+  z-index: 1;
+  pointer-events: none;
+}
+
+.toy-square {
+  position: absolute;
+  width: 260px;
+  height: 260px;
+  background: #ffffff;
+  border: 8px solid rgba(255, 255, 255, 0.9);
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.28);
+  z-index: 1;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+#ui {
+  z-index: 2;
+}
+
+#ui .abs {
+  position: absolute;
+  display: block;
+  transform-origin: center center;
+}
+
+.screen {
+  position: absolute;
+  inset: 0;
+}
+
+#ui img.abs {
+  pointer-events: none;
+  -webkit-user-drag: none;
+}
+
+/* ---- Buttons ---- */
+.lily-btn {
+  position: absolute;
+  border: none;
+  border-radius: 40px;
+  background: #FFD126;
+  color: #3a2a00;
+  font-family: 'ArialRoundedBold', sans-serif;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 0 8px 0 #b8930f, 0 12px 20px rgba(0,0,0,0.35);
+  transition: transform 0.08s ease;
+}
+.lily-btn:active {
+  transform: translateY(6px);
+  box-shadow: 0 2px 0 #b8930f, 0 4px 10px rgba(0,0,0,0.35);
+}
+
+#okBtn {
+  left: 760px;
+  top: 820px;
+  width: 400px;
+  height: 140px;
+  font-size: 64px;
+}
+
+#startBtn {
+  left: 660px;
+  top: 980px;
+  width: 600px;
+  height: 130px;
+  font-size: 48px;
+}
+
+/* ---- Instructions card ---- */
+#instructionsCard {
+  position: absolute;
+  left: 260px;
+  top: 470px;
+  width: 1400px;
+  min-height: 320px;
+  background: rgba(5, 5, 10, 0.72);
+  border-radius: 48px;
+  border: 6px solid #FFD126;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 60px;
+  text-align: center;
+}
+#instructionsCard p {
+  color: #ffffff;
+  font-size: 52px;
+  line-height: 1.35;
+  margin: 0;
+  text-shadow: 0 3px 8px rgba(0,0,0,0.5);
+}
+
+/* ---- HUD text ---- */
+.battery-text {
+  position: absolute;
+  color: #ffffff;
+  font-size: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+/* ---- Digit slots ---- */
+.digit-img {
+  position: absolute;
+  pointer-events: none;
+}
+
+/* ---- Flash overlay ---- */
+#flashOverlay {
+  position: absolute;
+  inset: 0;
+  background: #ffffff;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* ---- Star burst ---- */
+.star-burst {
+  position: absolute;
+  width: 360px;
+  height: 385px;
+  background-image: url('../assets/effects/stars_sheet.png');
+  background-size: 600% 600%;
+  pointer-events: none;
+  z-index: 6;
+}
+
+/* ---- Debug motion overlay ---- */
+#debugMotion {
+  position: absolute;
+  left: 20px;
+  top: 20px;
+  color: #0f0;
+  font-family: monospace;
+  font-size: 24px;
+  background: rgba(0,0,0,0.5);
+  padding: 10px 16px;
+  border-radius: 8px;
+  z-index: 20;
+  white-space: pre;
+}
+
+.hidden { display: none !important; }
+
+/* ---- Rotate-device prompt (shown whenever the viewport is portrait) ---- */
+#rotatePrompt {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: #050506;
+  color: #ffffff;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 24px;
+}
+#rotatePrompt.visible {
+  display: flex;
+}
+#rotatePrompt .icon {
+  font-size: 18vw;
+  margin-bottom: 16px;
+  animation: rotateHint 1.6s ease-in-out infinite;
+}
+#rotatePrompt div {
+  font-size: 7vw;
+  font-weight: bold;
+}
+#rotatePrompt span {
+  font-size: 4vw;
+  opacity: 0.75;
+  margin-top: 10px;
+}
+@keyframes rotateHint {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(90deg); }
+}
