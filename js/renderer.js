@@ -2,7 +2,7 @@
 // Each video frame is split left(color)/right(mask); mask's red channel is
 // used as alpha. Straight (non-premultiplied) alpha blending, alpha-cutoff
 // discard, optional bottom fade and horizontal mirror.
-import { CONFIG } from './config.js?v=16';
+import { CONFIG } from './config.js?v=17';
 
 const VERT_SRC = `#version 300 es
 in vec2 aPos;
@@ -205,7 +205,7 @@ export class Renderer {
       if (!toy._glTex) this.createTextureFor(toy);
       this.updateTexture(toy);
       gl.bindTexture(gl.TEXTURE_2D, toy._glTex);
-      gl.uniform2f(this.u.centerPx, toy.x, toy.y);
+      gl.uniform2f(this.u.centerPx, toy.renderX ?? toy.x, toy.renderY ?? toy.y);
       gl.uniform2f(this.u.sizePx, toy.w * (toy.scale ?? 1), toy.h * (toy.scale ?? 1));
       gl.uniform1f(this.u.angleDeg, toy.angle ?? 0);
       gl.uniform1f(this.u.mirror, toy.mirror ? 1.0 : 0.0);

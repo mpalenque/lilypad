@@ -1,6 +1,6 @@
 // Central tunable constants for Lilypad Shake.
 export const CONFIG = {
-  BUILD: 'LILYPAD fullscreen fast build 16',
+  BUILD: 'LILYPAD sensitive bounce build 17',
 
   STAGE_W: 1920,
   STAGE_H: 1200,
@@ -19,9 +19,15 @@ export const CONFIG = {
 
   // Physics — tilt reveals the toy from its side; neutral/opposite tilt makes
   // it slide back toward the side it came from.
-  SLIDE_SPEED: 1250, // px/s at full tilt
-  RETREAT_SPEED: 1100,
-  SLIDE_EASE_APPROACH: 13.0,
+  SLIDE_SPEED: 2300, // px/s at full tilt
+  RETREAT_SPEED: 1950,
+  SLIDE_EASE_APPROACH: 22.0,
+  MIN_REVEAL_SPEED: 0.34,
+  TILT_FULL: 0.42,
+  BOUNCE_MIN_SPEED: 750,
+  BOUNCE_MAX_PX: 58,
+  BOUNCE_DURATION: 0.28,
+  BOUNCE_ANGLE_DEG: 1.6,
 
   // Shake detection
   SHAKE_THRESHOLD: 14,      // m/s^2 high-pass magnitude to count as a shake
@@ -31,9 +37,9 @@ export const CONFIG = {
   // Tilt-based spawning. Flip TILT_SIGN_X if the real device reports directions
   // backwards.
   TILT_SIGN_X: -1,
-  TILT_ENTER: 0.16,       // |tilt| threshold to start counting sustain
-  TILT_EXIT: 0.07,
-  TILT_SUSTAIN_SEC: 0.02, // how long a tilt must be held to spawn
+  TILT_ENTER: 0.055,      // |tilt| threshold to start counting sustain
+  TILT_EXIT: 0.015,
+  TILT_SUSTAIN_SEC: 0.0,  // how long a tilt must be held to spawn
 
   // Tap
   TAP_INFLATE: 50, // px, forgiving hit-test padding

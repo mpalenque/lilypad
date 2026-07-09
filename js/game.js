@@ -1,12 +1,12 @@
 // State machine + main loop tying together camera, motion, physics, toys, UI and FX.
-import { CONFIG } from './config.js?v=16';
-import { loadManifest } from './manifest.js?v=16';
-import { UI } from './ui.js?v=16';
-import { Renderer } from './renderer.js?v=16';
-import { startCamera } from './camera.js?v=16';
-import { Motion } from './motion.js?v=16';
-import { ToyManager } from './toys.js?v=16';
-import { Fx } from './fx.js?v=16';
+import { CONFIG } from './config.js?v=17';
+import { loadManifest } from './manifest.js?v=17';
+import { UI } from './ui.js?v=17';
+import { Renderer } from './renderer.js?v=17';
+import { startCamera } from './camera.js?v=17';
+import { Motion } from './motion.js?v=17';
+import { ToyManager } from './toys.js?v=17';
+import { Fx } from './fx.js?v=17';
 
 const stageEl = document.getElementById('stage');
 const cameraEl = document.getElementById('camera');
@@ -159,7 +159,7 @@ class Game {
     this.foundCount++;
     this.ui.updatePoints(this.foundCount);
     this.fx.flash();
-    this.fx.starsAt(toy.x, toy.y);
+    this.fx.starsAt(toy.renderX ?? toy.x, toy.renderY ?? toy.y);
     this.fx.playFound();
   }
 

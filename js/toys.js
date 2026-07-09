@@ -1,6 +1,6 @@
 // Tilt-revealed toys using the split-alpha video clips.
-import { CONFIG } from './config.js?v=16';
-import { stepToyPhysics } from './physics.js?v=16';
+import { CONFIG } from './config.js?v=17';
+import { stepToyPhysics } from './physics.js?v=17';
 
 let toyIdCounter = 0;
 
@@ -183,6 +183,8 @@ export class ToyManager {
       side,
       x: hiddenX,
       y: CONFIG.TOY_Y,
+      renderX: hiddenX,
+      renderY: CONFIG.TOY_Y,
       w,
       h,
       vx: 0,
@@ -282,10 +284,12 @@ export class ToyManager {
     let bestDist = Infinity;
     for (const toy of this.toys) {
       if (toy.grabbing) continue;
+      const cx = toy.renderX ?? toy.x;
+      const cy = toy.renderY ?? toy.y;
       const halfW = toy.w / 2 + CONFIG.TAP_INFLATE;
       const halfH = toy.h / 2 + CONFIG.TAP_INFLATE;
-      if (Math.abs(stageX - toy.x) <= halfW && Math.abs(stageY - toy.y) <= halfH) {
-        const d = Math.hypot(stageX - toy.x, stageY - toy.y);
+      if (Math.abs(stageX - cx) <= halfW && Math.abs(stageY - cy) <= halfH) {
+        const d = Math.hypot(stageX - cx, stageY - cy);
         if (d < bestDist) {
           bestDist = d;
           best = toy;
