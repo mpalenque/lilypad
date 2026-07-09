@@ -1,6 +1,6 @@
 // Fast horizontal slide. No wobble/vertical looseness: keep the proven tilt
 // behavior stable and bounded.
-import { CONFIG } from './config.js?v=15';
+import { CONFIG } from './config.js?v=16';
 
 function clamp01(value) {
   return Math.max(0, Math.min(1, value));

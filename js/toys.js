@@ -1,6 +1,6 @@
 // Tilt-revealed toys using the split-alpha video clips.
-import { CONFIG } from './config.js?v=15';
-import { stepToyPhysics } from './physics.js?v=15';
+import { CONFIG } from './config.js?v=16';
+import { stepToyPhysics } from './physics.js?v=16';
 
 let toyIdCounter = 0;
 

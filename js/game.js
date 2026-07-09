@@ -1,12 +1,12 @@
 // State machine + main loop tying together camera, motion, physics, toys, UI and FX.
-import { CONFIG } from './config.js?v=15';
-import { loadManifest } from './manifest.js?v=15';
-import { UI } from './ui.js?v=15';
-import { Renderer } from './renderer.js?v=15';
-import { startCamera } from './camera.js?v=15';
-import { Motion } from './motion.js?v=15';
-import { ToyManager } from './toys.js?v=15';
-import { Fx } from './fx.js?v=15';
+import { CONFIG } from './config.js?v=16';
+import { loadManifest } from './manifest.js?v=16';
+import { UI } from './ui.js?v=16';
+import { Renderer } from './renderer.js?v=16';
+import { startCamera } from './camera.js?v=16';
+import { Motion } from './motion.js?v=16';
+import { ToyManager } from './toys.js?v=16';
+import { Fx } from './fx.js?v=16';
 
 const stageEl = document.getElementById('stage');
 const cameraEl = document.getElementById('camera');
@@ -18,16 +18,30 @@ let stageScale = 1;
 let rendererRef = null;
 
 function fitStage() {
-  const portrait = window.innerHeight > window.innerWidth;
+  const viewport = window.visualViewport;
+  const vw = viewport?.width || window.innerWidth;
+  const vh = viewport?.height || window.innerHeight;
+  const ox = viewport?.offsetLeft || 0;
+  const oy = viewport?.offsetTop || 0;
+  const portrait = vh > vw;
   rotatePromptEl.classList.toggle('visible', portrait);
 
-  const s = Math.min(window.innerWidth / CONFIG.STAGE_W, window.innerHeight / CONFIG.STAGE_H);
+  const s = Math.max(vw / CONFIG.STAGE_W, vh / CONFIG.STAGE_H);
   stageScale = s;
+  stageEl.style.left = `${ox + vw / 2}px`;
+  stageEl.style.top = `${oy + vh / 2}px`;
   stageEl.style.transform = `translate(-50%, -50%) scale(${s})`;
   if (rendererRef) rendererRef.resize();
 }
 window.addEventListener('resize', fitStage);
 window.addEventListener('orientationchange', fitStage);
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', fitStage);
+  window.visualViewport.addEventListener('scroll', fitStage);
+}
+document.addEventListener('gesturestart', (e) => e.preventDefault(), { passive: false });
+document.addEventListener('gesturechange', (e) => e.preventDefault(), { passive: false });
+document.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
 
 function toStage(clientX, clientY) {
   const r = stageEl.getBoundingClientRect();
@@ -168,21 +182,6 @@ class Game {
   }
 
   _update(dt) {
-    if (CONFIG.DEBUG_MOTION) {
-      const g = this.motion.gravity;
-      const cam = cameraEl.srcObject ? `${cameraEl.videoWidth}x${cameraEl.videoHeight} ${cameraEl.paused ? 'paused' : 'live'}` : 'no-stream';
-      this.ui.showDebugMotion(
-        `${CONFIG.BUILD}\n` +
-        `motion perm: ${this.motion.permissionState}  events: ${this.motion.eventCount}\n` +
-        `gx: ${g.x.toFixed(2)}  gy: ${g.y.toFixed(2)}  tilt: ${this.motion.tiltMagnitude.toFixed(2)}\n` +
-        `state: ${this.state}  toys: ${this.toys.toys.length}\n` +
-        `${this.toys.debugVideoInfo()}\n` +
-        `cam: ${cam}\n` +
-        `gl frames: ${this.renderer ? this.renderer.framesUploaded : 0} ok:${this.renderer ? this.renderer.lastUploadOk : false}\n` +
-        `screen: ${window.innerWidth}x${window.innerHeight}`
-      );
-    }
-
     if (this.state === STATE.PLAYING) {
       this.toys.update(dt, this.motion);
       this.timeLeft -= dt;

@@ -1,7 +1,7 @@
 // Lily UI overlay: START / INSTRUCTIONS / HUD / RESULTS screens, built from the
 // exact sprites cut from "GUI lilypad.psd", positioned via the PSD manifest.
-import { CONFIG } from './config.js?v=15';
-import { DIGIT_SLOTS } from './manifest.js?v=15';
+import { CONFIG } from './config.js?v=16';
+import { DIGIT_SLOTS } from './manifest.js?v=16';
 
 function place(el, m) {
   el.style.left = `${m.cx - m.w / 2}px`;
@@ -177,11 +177,6 @@ export class UI {
     this.flashEl = document.createElement('div');
     this.flashEl.id = 'flashOverlay';
     this.root.appendChild(this.flashEl);
-
-    this.debugEl = document.createElement('div');
-    this.debugEl.id = 'debugMotion';
-    this.debugEl.classList.add('hidden');
-    this.root.appendChild(this.debugEl);
   }
 
   _buildStart() {
@@ -272,15 +267,6 @@ export class UI {
 
   updateBattery() {
     this.screens.hud.battery.update();
-  }
-
-  showDebugMotion(text) {
-    this.debugEl.classList.remove('hidden');
-    this.debugEl.textContent = text;
-  }
-
-  hideDebugMotion() {
-    this.debugEl.classList.add('hidden');
   }
 
   _animateResults(foundCount) {
