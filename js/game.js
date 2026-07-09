@@ -1,12 +1,12 @@
 // State machine + main loop tying together camera, motion, physics, toys, UI and FX.
-import { CONFIG } from './config.js?v=18';
-import { loadManifest } from './manifest.js?v=18';
-import { UI } from './ui.js?v=18';
-import { Renderer } from './renderer.js?v=18';
-import { startCamera } from './camera.js?v=18';
-import { Motion } from './motion.js?v=18';
-import { ToyManager } from './toys.js?v=18';
-import { Fx } from './fx.js?v=18';
+import { CONFIG } from './config.js?v=19';
+import { loadManifest } from './manifest.js?v=19';
+import { UI } from './ui.js?v=19';
+import { Renderer } from './renderer.js?v=19';
+import { startCamera } from './camera.js?v=19';
+import { Motion } from './motion.js?v=19';
+import { ToyManager } from './toys.js?v=19';
+import { Fx } from './fx.js?v=19';
 
 const stageEl = document.getElementById('stage');
 const cameraEl = document.getElementById('camera');
@@ -54,6 +54,7 @@ function toStage(clientX, clientY) {
 const STATE = {
   BOOT: 'BOOT',
   START: 'START',
+  DIFFICULTY: 'DIFFICULTY',
   INSTRUCTIONS: 'INSTRUCTIONS',
   PLAYING: 'PLAYING',
   RESULTS: 'RESULTS',
@@ -66,6 +67,7 @@ class Game {
     this.timeLeft = CONFIG.GAME_SECONDS;
     this.resultsTimer = 0;
     this.motion = new Motion();
+    this.difficulty = 'easy';
     this._lastT = null;
     this._batteryTick = 0;
   }
@@ -98,6 +100,8 @@ class Game {
     });
 
     this.ui.screens.start.okBtn.addEventListener('click', () => this._onOk());
+    this.ui.screens.difficulty.easyBtn.addEventListener('click', () => this._onDifficulty('easy'));
+    this.ui.screens.difficulty.hardBtn.addEventListener('click', () => this._onDifficulty('hard'));
     this.ui.screens.instructions.startBtn.addEventListener('click', () => this._onStartGame());
     stageEl.addEventListener('pointerdown', (e) => this._onPointerDown(e));
 
@@ -127,6 +131,13 @@ class Game {
       })
       .catch((err) => console.warn('[game] motion permission error:', err));
 
+    this.state = STATE.DIFFICULTY;
+    this.ui.showDifficulty();
+  }
+
+  _onDifficulty(mode) {
+    this.difficulty = mode === 'hard' ? 'hard' : 'easy';
+    this.toys.setDifficulty(this.difficulty);
     this.state = STATE.INSTRUCTIONS;
     this.ui.showInstructions();
   }
@@ -134,6 +145,7 @@ class Game {
   _onStartGame() {
     this.foundCount = 0;
     this.timeLeft = CONFIG.GAME_SECONDS;
+    this.toys.setDifficulty(this.difficulty);
     this.toys.reset();
     this.ui.updatePoints(0);
     this.ui.updateTimer(this.timeLeft);
@@ -142,6 +154,9 @@ class Game {
   }
 
   _goToStart() {
+    this._okHandled = false;
+    this.difficulty = 'easy';
+    this.toys.setDifficulty(this.difficulty);
     this.toys.reset();
     this.state = STATE.START;
     this.ui.showStart();

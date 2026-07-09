@@ -1,5 +1,5 @@
-// Fast bounded slide with optional diagonal entry and a light edge bounce.
-import { CONFIG } from './config.js?v=18';
+// Fast bounded horizontal slide with a light edge bounce.
+import { CONFIG } from './config.js?v=19';
 
 function clamp01(value) {
   return Math.max(0, Math.min(1, value));
@@ -18,24 +18,10 @@ function triggerBounce(toy, impactSpeed) {
   toy.bounceAmp = CONFIG.BOUNCE_MAX_PX * (0.35 + strength * 0.65);
 }
 
-function entryProgress(toy) {
-  const range = Math.abs(toy.restX - toy.hiddenX);
-  if (range <= 0) return 1;
-  const traveled = toy.side === 'right' ? toy.hiddenX - toy.x : toy.x - toy.hiddenX;
-  return clamp01(traveled / range);
-}
-
-function lerp(a, b, t) {
-  return a + (b - a) * t;
-}
-
 function updateBounce(toy, dt) {
   toy.renderX = toy.x;
   toy.renderY = toy.y;
-  const progress = entryProgress(toy);
-  const settle = Math.pow(1 - progress, 0.72);
-  const entryAngle = toy.entryAngle || 0;
-  toy.angle = entryAngle * settle;
+  toy.angle = 0;
 
   if (toy.bounceT == null || toy.bounceAmp == null) return;
 
@@ -61,10 +47,13 @@ export function stepToyPhysics(toy, dt, revealAmount, retreatAmount) {
   const retreat01 = clamp01(retreatAmount);
   const sideDir = toy.side === 'right' ? 1 : -1;
   const movingIn = reveal01 > 0;
-  const speed = movingIn ? CONFIG.SLIDE_SPEED * reveal01 : CONFIG.RETREAT_SPEED * (0.45 + retreat01);
+  const slideSpeed = CONFIG.SLIDE_SPEED * (toy.slideSpeedMul ?? 1);
+  const retreatSpeed = CONFIG.RETREAT_SPEED * (toy.retreatSpeedMul ?? 1);
+  const ease = CONFIG.SLIDE_EASE_APPROACH * (toy.easeMul ?? 1);
+  const speed = movingIn ? slideSpeed * reveal01 : retreatSpeed * (0.45 + retreat01);
   const targetVx = sideDir * speed * (movingIn ? -1 : 1);
 
-  toy.vx += (targetVx - toy.vx) * CONFIG.SLIDE_EASE_APPROACH * dt;
+  toy.vx += (targetVx - toy.vx) * ease * dt;
   toy.x += toy.vx * dt;
 
   if (toy.side === 'right') {
@@ -99,7 +88,6 @@ export function stepToyPhysics(toy, dt, revealAmount, retreatAmount) {
     }
   }
 
-  const progress = entryProgress(toy);
-  toy.y = lerp(toy.hiddenY ?? CONFIG.TOY_Y, toy.restY ?? CONFIG.TOY_Y, progress);
+  toy.y = toy.restY ?? CONFIG.TOY_Y;
   updateBounce(toy, dt);
 }

@@ -1,6 +1,6 @@
 // Central tunable constants for Lilypad Shake.
 export const CONFIG = {
-  BUILD: 'LILYPAD visible diagonal build 18',
+  BUILD: 'LILYPAD full video difficulty build 19',
 
   STAGE_W: 1920,
   STAGE_H: 1200,
@@ -8,28 +8,44 @@ export const CONFIG = {
   GAME_SECONDS: 180,
   RESULTS_SECONDS: 4,
 
-  // One toy on screen at a time: it enters from the side/corner opposite the
-  // tilt, then stops flush with that same edge.
+  // One toy on screen at a time: it enters horizontally from the side opposite
+  // the tilt, stays while its video plays, then disappears at video end.
   MAX_CONCURRENT_TOYS: 1,
-  TOY_HEIGHT_PX: 1148,
+  TOY_HEIGHT_PX: 918,
   TOY_ASPECT: 640 / 720, // color-half aspect (portrait split-alpha videos)
   TOY_Y: 600,
   TOY_START_X_OFFSET: 22,
-  VIDEO_STOP_AT_SEC: 2.0,
 
-  // Physics — tilt reveals the toy from its side; neutral/opposite tilt makes
-  // it slide back toward the side it came from.
-  SLIDE_SPEED: 2300, // px/s at full tilt
-  RETREAT_SPEED: 1950,
-  SLIDE_EASE_APPROACH: 22.0,
+  // Physics — a fresh tilt gesture reveals the toy from its side; after the
+  // full video ends it hides back through that same side.
+  SLIDE_SPEED: 2200, // px/s at full tilt
+  RETREAT_SPEED: 2300,
+  SLIDE_EASE_APPROACH: 20.0,
   MIN_REVEAL_SPEED: 0.34,
   TILT_FULL: 0.42,
   BOUNCE_MIN_SPEED: 750,
   BOUNCE_MAX_PX: 58,
   BOUNCE_DURATION: 0.28,
-  BOUNCE_ANGLE_DEG: 1.6,
-  ENTRY_ANGLE_DEG: 9,
-  ENTRY_CORNER_OFFSET: 80,
+  BOUNCE_ANGLE_DEG: 1.0,
+  EXPIRE_FADE_SEC: 0.18,
+  SPAWN_COOLDOWN_SEC: 0.28,
+
+  DIFFICULTY: {
+    easy: {
+      slideSpeedMul: 0.72,
+      retreatSpeedMul: 0.75,
+      easeMul: 0.9,
+      expireFadeSec: 0.22,
+      spawnCooldownSec: 0.38,
+    },
+    hard: {
+      slideSpeedMul: 1.45,
+      retreatSpeedMul: 1.85,
+      easeMul: 1.35,
+      expireFadeSec: 0.08,
+      spawnCooldownSec: 0.22,
+    },
+  },
 
   // Shake detection
   SHAKE_THRESHOLD: 14,      // m/s^2 high-pass magnitude to count as a shake
@@ -39,9 +55,9 @@ export const CONFIG = {
   // Tilt-based spawning. Flip TILT_SIGN_X if the real device reports directions
   // backwards.
   TILT_SIGN_X: -1,
-  TILT_ENTER: 0.055,      // |tilt| threshold to start counting sustain
-  TILT_EXIT: 0.015,
-  TILT_SUSTAIN_SEC: 0.0,  // how long a tilt must be held to spawn
+  TILT_ENTER: 0.075,      // |tilt| threshold to start counting sustain
+  TILT_EXIT: 0.025,
+  TILT_SUSTAIN_SEC: 0.04, // how long a new tilt gesture must be held to spawn
 
   // Tap
   TAP_INFLATE: 50, // px, forgiving hit-test padding

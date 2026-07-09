@@ -1,7 +1,7 @@
 // Lily UI overlay: START / INSTRUCTIONS / HUD / RESULTS screens, built from the
 // exact sprites cut from "GUI lilypad.psd", positioned via the PSD manifest.
-import { CONFIG } from './config.js?v=18';
-import { DIGIT_SLOTS } from './manifest.js?v=18';
+import { CONFIG } from './config.js?v=19';
+import { DIGIT_SLOTS } from './manifest.js?v=19';
 
 function place(el, m) {
   el.style.left = `${m.cx - m.w / 2}px`;
@@ -17,6 +17,18 @@ function img(src, m) {
   el.draggable = false;
   if (m) place(el, m);
   return el;
+}
+
+function imageButton(src, m, id) {
+  const btn = document.createElement('button');
+  btn.id = id;
+  btn.className = 'image-btn abs';
+  place(btn, m);
+  const art = document.createElement('img');
+  art.src = src;
+  art.draggable = false;
+  btn.appendChild(art);
+  return btn;
 }
 
 // Port of ARDigitNumber.cs: right-aligned image glyphs into fixed slots,
@@ -166,6 +178,7 @@ export class UI {
 
   _build() {
     this.screens.start = this._buildStart();
+    this.screens.difficulty = this._buildDifficulty();
     this.screens.instructions = this._buildInstructions();
     this.screens.hud = this._buildHud();
     this.screens.results = this._buildResults();
@@ -191,6 +204,20 @@ export class UI {
     el.appendChild(okBtn);
     return { el, okBtn };
   }
+
+  _buildDifficulty() {
+    const el = document.createElement('div');
+    el.appendChild(img('assets/ui/lily_bg.png', this.manifest.lily_bg));
+    el.appendChild(img('assets/ui/lily_title.png', this.manifest.lily_title));
+    el.appendChild(img('assets/ui/lily_difficulty.png', this.manifest.lily_difficulty));
+    el.appendChild(img('assets/ui/lily_copyright.png', this.manifest.lily_copyright));
+    const easyBtn = imageButton('assets/ui/lily_btn_facil.png', this.manifest.lily_btn_facil, 'easyBtn');
+    const hardBtn = imageButton('assets/ui/lily_btn_dificil.png', this.manifest.lily_btn_dificil, 'hardBtn');
+    el.appendChild(easyBtn);
+    el.appendChild(hardBtn);
+    return { el, easyBtn, hardBtn };
+  }
+
 
   _buildInstructions() {
     const el = document.createElement('div');
@@ -243,6 +270,10 @@ export class UI {
 
   showInstructions() {
     this._showOnly('instructions');
+  }
+
+  showDifficulty() {
+    this._showOnly('difficulty');
   }
 
   showHud() {

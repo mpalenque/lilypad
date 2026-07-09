@@ -108,6 +108,29 @@ body {
   box-shadow: 0 2px 0 #b8930f, 0 4px 10px rgba(0,0,0,0.35);
 }
 
+.image-btn {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  touch-action: manipulation;
+  transition: transform 0.08s ease, filter 0.08s ease;
+}
+.image-btn img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  -webkit-user-drag: none;
+}
+.image-btn:active {
+  transform: translateY(8px) scale(0.985);
+  filter: brightness(0.96);
+}
+
 #okBtn {
   left: 760px;
   top: 820px;

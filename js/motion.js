@@ -1,7 +1,7 @@
 // DeviceMotion → screen-space gravity vector + shake detection.
 // Cross-platform: iOS 13+ requires an explicit permission prompt fired from
 // a user gesture; Android/desktop just start listening.
-import { CONFIG } from './config.js?v=18';
+import { CONFIG } from './config.js?v=19';
 
 function screenGravityFromAccel(ax, ay) {
   const angle = (screen.orientation && screen.orientation.angle) ?? window.orientation ?? 0;

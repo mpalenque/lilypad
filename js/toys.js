@@ -1,6 +1,6 @@
 // Tilt-revealed toys using the split-alpha video clips.
-import { CONFIG } from './config.js?v=18';
-import { stepToyPhysics } from './physics.js?v=18';
+import { CONFIG } from './config.js?v=19';
+import { stepToyPhysics } from './physics.js?v=19';
 
 let toyIdCounter = 0;
 
@@ -14,38 +14,6 @@ function shuffle(arr) {
 
 function rand(min, max) {
   return min + Math.random() * (max - min);
-}
-
-function pickEntryProfile(side, h) {
-  const fromRight = side === 'right';
-  const angleSign = fromRight ? -1 : 1;
-  const restY = CONFIG.TOY_Y + rand(-18, 18);
-  const r = Math.random();
-
-  if (r < 0.38) {
-    return {
-      name: 'side',
-      hiddenY: restY,
-      restY,
-      entryAngle: angleSign * rand(3, 6),
-    };
-  }
-
-  if (r < 0.78) {
-    return {
-      name: 'top-corner',
-      hiddenY: -h / 2 - CONFIG.ENTRY_CORNER_OFFSET - rand(0, 90),
-      restY,
-      entryAngle: angleSign * rand(CONFIG.ENTRY_ANGLE_DEG - 2, CONFIG.ENTRY_ANGLE_DEG + 3),
-    };
-  }
-
-  return {
-    name: 'bottom-corner',
-    hiddenY: CONFIG.STAGE_H + h / 2 + CONFIG.ENTRY_CORNER_OFFSET + rand(0, 90),
-    restY,
-    entryAngle: -angleSign * rand(CONFIG.ENTRY_ANGLE_DEG - 2, CONFIG.ENTRY_ANGLE_DEG + 3),
-  };
 }
 
 function visibleRectFor(toy) {
@@ -72,6 +40,12 @@ function visibleRectFor(toy) {
     bottom: visibleBottom,
     fraction: visibleArea / (w * h),
   };
+}
+
+function videoFinished(videoEl) {
+  if (!videoEl) return true;
+  if (videoEl.ended) return true;
+  return Number.isFinite(videoEl.duration) && videoEl.duration > 0 && videoEl.currentTime >= videoEl.duration - 0.04;
 }
 
 class ClipBag {
@@ -192,9 +166,11 @@ export class ToyManager {
     this.pool = new VideoPool(videoBasePath, CONFIG.CLIPS);
     this.toys = [];
     this.onScore = null;
+    this.difficulty = 'easy';
     this._tiltSustain = 0;
     this._tiltSide = null;
-    this._armedSide = null;
+    this._gestureReady = false;
+    this._spawnCooldown = 0;
     this._destroyTex = null;
   }
 
@@ -206,18 +182,27 @@ export class ToyManager {
     await this.pool.unlockAll();
   }
 
+  setDifficulty(mode) {
+    this.difficulty = mode === 'hard' ? 'hard' : 'easy';
+  }
+
+  _difficultyConfig() {
+    return CONFIG.DIFFICULTY[this.difficulty] || CONFIG.DIFFICULTY.easy;
+  }
+
   debugVideoInfo() {
     const t = this.toys[0];
     if (!t || !t.videoEl) return 'video: (none)  next side: tilt';
     const v = t.videoEl;
-    return `video ${t.clip} ${t.side}/${t.entryName}: rs=${v.readyState} ${v.paused ? 'paused' : 'playing'} t=${v.currentTime.toFixed(2)}`;
+    return `video ${t.clip} ${t.side}/${this.difficulty}: rs=${v.readyState} ${v.paused ? 'paused' : 'playing'} t=${v.currentTime.toFixed(2)}`;
   }
 
   reset() {
     for (const toy of [...this.toys]) this._removeToy(toy);
     this._tiltSustain = 0;
     this._tiltSide = null;
-    this._armedSide = null;
+    this._gestureReady = false;
+    this._spawnCooldown = 0;
   }
 
   getActiveClips() {
@@ -235,7 +220,8 @@ export class ToyManager {
     const w = h * CONFIG.TOY_ASPECT;
     const fromRight = side === 'right';
     const hiddenX = fromRight ? CONFIG.STAGE_W + w / 2 + CONFIG.TOY_START_X_OFFSET : -w / 2 - CONFIG.TOY_START_X_OFFSET;
-    const profile = pickEntryProfile(side, h);
+    const settings = this._difficultyConfig();
+    const y = CONFIG.TOY_Y + rand(-14, 14);
 
     const toy = {
       id: ++toyIdCounter,
@@ -243,27 +229,30 @@ export class ToyManager {
       videoEl,
       side,
       x: hiddenX,
-      y: profile.hiddenY,
+      y,
       renderX: hiddenX,
-      renderY: profile.hiddenY,
+      renderY: y,
       w,
       h,
       vx: 0,
       restX: fromRight ? CONFIG.STAGE_W - w / 2 : w / 2,
-      restY: profile.restY,
+      restY: y,
       hiddenX,
-      hiddenY: profile.hiddenY,
       resting: false,
       hidden: true,
       hasEntered: false,
       mirror: fromRight,
       scale: 1,
       alpha: 1,
-      angle: profile.entryAngle,
-      entryAngle: profile.entryAngle,
-      entryName: profile.name,
+      angle: 0,
       playbackElapsed: 0,
-      videoStopped: false,
+      expiring: false,
+      expireT: 0,
+      canTap: true,
+      slideSpeedMul: settings.slideSpeedMul,
+      retreatSpeedMul: settings.retreatSpeedMul,
+      easeMul: settings.easeMul,
+      expireFadeSec: settings.expireFadeSec,
       grabbing: false,
       grabT: 0,
       bornAt: performance.now(),
@@ -281,13 +270,14 @@ export class ToyManager {
   }
 
   update(dt, motion) {
+    this._spawnCooldown = Math.max(0, this._spawnCooldown - dt);
     const signedTilt = CONFIG.TILT_SIGN_X * motion.gravity.x;
     const leftAmount = signedTilt;
     const rightAmount = -signedTilt;
     const activeSide = leftAmount > CONFIG.TILT_ENTER ? 'right' : rightAmount > CONFIG.TILT_ENTER ? 'left' : null;
 
     if (!activeSide) {
-      this._armedSide = null;
+      if (this.toys.length === 0) this._gestureReady = true;
       this._tiltSustain = 0;
       this._tiltSide = null;
     } else if (this._tiltSide !== activeSide) {
@@ -295,12 +285,12 @@ export class ToyManager {
       this._tiltSustain = 0;
     }
 
-    const canSpawnSide = activeSide && this._armedSide !== activeSide;
+    const canSpawnSide = activeSide && this._gestureReady && this._spawnCooldown <= 0;
     if (canSpawnSide && this.toys.length < CONFIG.MAX_CONCURRENT_TOYS) {
       this._tiltSustain += dt;
       if (this._tiltSustain >= CONFIG.TILT_SUSTAIN_SEC) {
         this.spawnFromSide(activeSide);
-        this._armedSide = activeSide;
+        this._gestureReady = false;
         this._tiltSustain = 0;
       }
     }
@@ -308,21 +298,12 @@ export class ToyManager {
     for (const toy of [...this.toys]) {
       const v = toy.videoEl;
       if (v) {
-        if (!toy.videoStopped && !toy.grabbing) {
+        if (!toy.expiring && !toy.grabbing) {
           toy.playbackElapsed += dt;
         }
-        if (
-          !toy.videoStopped &&
-          (toy.playbackElapsed >= CONFIG.VIDEO_STOP_AT_SEC || v.currentTime >= CONFIG.VIDEO_STOP_AT_SEC || v.ended)
-        ) {
-          toy.videoStopped = true;
-          v.pause();
-          try {
-            v.currentTime = Math.min(CONFIG.VIDEO_STOP_AT_SEC, Number.isFinite(v.duration) ? v.duration : CONFIG.VIDEO_STOP_AT_SEC);
-          } catch (e) {
-            /* ignore */
-          }
-        } else if (!toy.videoStopped && v.paused && v.readyState >= 2 && !toy.grabbing) {
+        if (!toy.expiring && !toy.grabbing && videoFinished(v)) {
+          this._beginExpireToy(toy);
+        } else if (!toy.expiring && v.paused && v.readyState >= 2 && !toy.grabbing) {
           v.play().catch(() => {});
         }
       }
@@ -335,11 +316,16 @@ export class ToyManager {
         continue;
       }
 
-      const revealAmount = toy.side === 'right' ? leftAmount : rightAmount;
-      const retreatAmount = toy.side === 'right' ? rightAmount : leftAmount;
+      if (toy.expiring) {
+        toy.expireT += dt;
+        toy.alpha = Math.max(0, 1 - toy.expireT / toy.expireFadeSec);
+      }
+
+      const revealAmount = toy.expiring ? 0 : 1;
+      const retreatAmount = toy.expiring ? 1 : 0;
       stepToyPhysics(toy, dt, revealAmount, retreatAmount);
       if (!toy.hidden) toy.hasEntered = true;
-      if (toy.hidden && toy.hasEntered) this._removeToy(toy);
+      if (toy.hidden && (toy.hasEntered || toy.expiring)) this._removeToy(toy);
     }
   }
 
@@ -348,7 +334,7 @@ export class ToyManager {
     let best = null;
     let bestDist = Infinity;
     for (const toy of this.toys) {
-      if (toy.grabbing) continue;
+      if (toy.grabbing || toy.expiring || !toy.canTap) continue;
       const visible = visibleRectFor(toy);
       if (!visible || visible.fraction < CONFIG.MIN_TOUCH_VISIBLE_FRACTION) continue;
 
@@ -366,12 +352,24 @@ export class ToyManager {
     }
     if (best) {
       best.grabbing = true;
+      best.canTap = false;
       best.grabT = 0;
-      this._armedSide = null;
+      this._spawnCooldown = this._difficultyConfig().spawnCooldownSec ?? CONFIG.SPAWN_COOLDOWN_SEC;
       this._tiltSustain = 0;
       if (this.onScore) this.onScore(best);
     }
     return best;
+  }
+
+  _beginExpireToy(toy) {
+    if (toy.expiring) return;
+    toy.expiring = true;
+    toy.canTap = false;
+    toy.expireT = 0;
+    this._spawnCooldown = this._difficultyConfig().spawnCooldownSec ?? CONFIG.SPAWN_COOLDOWN_SEC;
+    if (toy.videoEl) {
+      toy.videoEl.pause();
+    }
   }
 
   _removeToy(toy) {
