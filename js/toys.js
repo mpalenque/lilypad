@@ -1,6 +1,6 @@
 // Tilt-revealed toys using the split-alpha video clips.
-import { CONFIG } from './config.js?v=17';
-import { stepToyPhysics } from './physics.js?v=17';
+import { CONFIG } from './config.js?v=18';
+import { stepToyPhysics } from './physics.js?v=18';
 
 let toyIdCounter = 0;
 
@@ -10,6 +10,68 @@ function shuffle(arr) {
     [arr[i], arr[j]] = [arr[j], arr[i]];
   }
   return arr;
+}
+
+function rand(min, max) {
+  return min + Math.random() * (max - min);
+}
+
+function pickEntryProfile(side, h) {
+  const fromRight = side === 'right';
+  const angleSign = fromRight ? -1 : 1;
+  const restY = CONFIG.TOY_Y + rand(-18, 18);
+  const r = Math.random();
+
+  if (r < 0.38) {
+    return {
+      name: 'side',
+      hiddenY: restY,
+      restY,
+      entryAngle: angleSign * rand(3, 6),
+    };
+  }
+
+  if (r < 0.78) {
+    return {
+      name: 'top-corner',
+      hiddenY: -h / 2 - CONFIG.ENTRY_CORNER_OFFSET - rand(0, 90),
+      restY,
+      entryAngle: angleSign * rand(CONFIG.ENTRY_ANGLE_DEG - 2, CONFIG.ENTRY_ANGLE_DEG + 3),
+    };
+  }
+
+  return {
+    name: 'bottom-corner',
+    hiddenY: CONFIG.STAGE_H + h / 2 + CONFIG.ENTRY_CORNER_OFFSET + rand(0, 90),
+    restY,
+    entryAngle: -angleSign * rand(CONFIG.ENTRY_ANGLE_DEG - 2, CONFIG.ENTRY_ANGLE_DEG + 3),
+  };
+}
+
+function visibleRectFor(toy) {
+  const scale = toy.scale ?? 1;
+  const w = toy.w * scale;
+  const h = toy.h * scale;
+  const cx = toy.renderX ?? toy.x;
+  const cy = toy.renderY ?? toy.y;
+  const left = cx - w / 2;
+  const right = cx + w / 2;
+  const top = cy - h / 2;
+  const bottom = cy + h / 2;
+  const visibleLeft = Math.max(0, left);
+  const visibleRight = Math.min(CONFIG.STAGE_W, right);
+  const visibleTop = Math.max(0, top);
+  const visibleBottom = Math.min(CONFIG.STAGE_H, bottom);
+  if (visibleRight <= visibleLeft || visibleBottom <= visibleTop) return null;
+
+  const visibleArea = (visibleRight - visibleLeft) * (visibleBottom - visibleTop);
+  return {
+    left: visibleLeft,
+    right: visibleRight,
+    top: visibleTop,
+    bottom: visibleBottom,
+    fraction: visibleArea / (w * h),
+  };
 }
 
 class ClipBag {
@@ -133,7 +195,6 @@ export class ToyManager {
     this._tiltSustain = 0;
     this._tiltSide = null;
     this._armedSide = null;
-    this._requiredSide = null;
     this._destroyTex = null;
   }
 
@@ -147,9 +208,9 @@ export class ToyManager {
 
   debugVideoInfo() {
     const t = this.toys[0];
-    if (!t || !t.videoEl) return `video: (none)  next side: ${this._requiredSide || 'any'}`;
+    if (!t || !t.videoEl) return 'video: (none)  next side: tilt';
     const v = t.videoEl;
-    return `video ${t.clip} ${t.side}: rs=${v.readyState} ${v.paused ? 'paused' : 'playing'} t=${v.currentTime.toFixed(2)}`;
+    return `video ${t.clip} ${t.side}/${t.entryName}: rs=${v.readyState} ${v.paused ? 'paused' : 'playing'} t=${v.currentTime.toFixed(2)}`;
   }
 
   reset() {
@@ -157,7 +218,6 @@ export class ToyManager {
     this._tiltSustain = 0;
     this._tiltSide = null;
     this._armedSide = null;
-    this._requiredSide = null;
   }
 
   getActiveClips() {
@@ -175,6 +235,7 @@ export class ToyManager {
     const w = h * CONFIG.TOY_ASPECT;
     const fromRight = side === 'right';
     const hiddenX = fromRight ? CONFIG.STAGE_W + w / 2 + CONFIG.TOY_START_X_OFFSET : -w / 2 - CONFIG.TOY_START_X_OFFSET;
+    const profile = pickEntryProfile(side, h);
 
     const toy = {
       id: ++toyIdCounter,
@@ -182,21 +243,25 @@ export class ToyManager {
       videoEl,
       side,
       x: hiddenX,
-      y: CONFIG.TOY_Y,
+      y: profile.hiddenY,
       renderX: hiddenX,
-      renderY: CONFIG.TOY_Y,
+      renderY: profile.hiddenY,
       w,
       h,
       vx: 0,
       restX: fromRight ? CONFIG.STAGE_W - w / 2 : w / 2,
+      restY: profile.restY,
       hiddenX,
+      hiddenY: profile.hiddenY,
       resting: false,
       hidden: true,
       hasEntered: false,
       mirror: fromRight,
       scale: 1,
       alpha: 1,
-      angle: 0,
+      angle: profile.entryAngle,
+      entryAngle: profile.entryAngle,
+      entryName: profile.name,
       playbackElapsed: 0,
       videoStopped: false,
       grabbing: false,
@@ -230,7 +295,7 @@ export class ToyManager {
       this._tiltSustain = 0;
     }
 
-    const canSpawnSide = activeSide && this._armedSide !== activeSide && (!this._requiredSide || this._requiredSide === activeSide);
+    const canSpawnSide = activeSide && this._armedSide !== activeSide;
     if (canSpawnSide && this.toys.length < CONFIG.MAX_CONCURRENT_TOYS) {
       this._tiltSustain += dt;
       if (this._tiltSustain >= CONFIG.TILT_SUSTAIN_SEC) {
@@ -284,12 +349,15 @@ export class ToyManager {
     let bestDist = Infinity;
     for (const toy of this.toys) {
       if (toy.grabbing) continue;
-      const cx = toy.renderX ?? toy.x;
-      const cy = toy.renderY ?? toy.y;
-      const halfW = toy.w / 2 + CONFIG.TAP_INFLATE;
-      const halfH = toy.h / 2 + CONFIG.TAP_INFLATE;
-      if (Math.abs(stageX - cx) <= halfW && Math.abs(stageY - cy) <= halfH) {
-        const d = Math.hypot(stageX - cx, stageY - cy);
+      const visible = visibleRectFor(toy);
+      if (!visible || visible.fraction < CONFIG.MIN_TOUCH_VISIBLE_FRACTION) continue;
+
+      const left = Math.max(0, visible.left - CONFIG.TAP_INFLATE);
+      const right = Math.min(CONFIG.STAGE_W, visible.right + CONFIG.TAP_INFLATE);
+      const top = Math.max(0, visible.top - CONFIG.TAP_INFLATE);
+      const bottom = Math.min(CONFIG.STAGE_H, visible.bottom + CONFIG.TAP_INFLATE);
+      if (stageX >= left && stageX <= right && stageY >= top && stageY <= bottom) {
+        const d = Math.hypot(stageX - (visible.left + visible.right) / 2, stageY - (visible.top + visible.bottom) / 2);
         if (d < bestDist) {
           bestDist = d;
           best = toy;
@@ -299,7 +367,8 @@ export class ToyManager {
     if (best) {
       best.grabbing = true;
       best.grabT = 0;
-      this._requiredSide = best.side === 'right' ? 'left' : 'right';
+      this._armedSide = null;
+      this._tiltSustain = 0;
       if (this.onScore) this.onScore(best);
     }
     return best;

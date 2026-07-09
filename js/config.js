@@ -1,6 +1,6 @@
 // Central tunable constants for Lilypad Shake.
 export const CONFIG = {
-  BUILD: 'LILYPAD sensitive bounce build 17',
+  BUILD: 'LILYPAD visible diagonal build 18',
 
   STAGE_W: 1920,
   STAGE_H: 1200,
@@ -8,8 +8,8 @@ export const CONFIG = {
   GAME_SECONDS: 180,
   RESULTS_SECONDS: 4,
 
-  // One toy on screen at a time: it appears from the side opposite the tilt,
-  // then stops flush with that same edge.
+  // One toy on screen at a time: it enters from the side/corner opposite the
+  // tilt, then stops flush with that same edge.
   MAX_CONCURRENT_TOYS: 1,
   TOY_HEIGHT_PX: 1148,
   TOY_ASPECT: 640 / 720, // color-half aspect (portrait split-alpha videos)
@@ -28,6 +28,8 @@ export const CONFIG = {
   BOUNCE_MAX_PX: 58,
   BOUNCE_DURATION: 0.28,
   BOUNCE_ANGLE_DEG: 1.6,
+  ENTRY_ANGLE_DEG: 9,
+  ENTRY_CORNER_OFFSET: 80,
 
   // Shake detection
   SHAKE_THRESHOLD: 14,      // m/s^2 high-pass magnitude to count as a shake
@@ -43,6 +45,7 @@ export const CONFIG = {
 
   // Tap
   TAP_INFLATE: 50, // px, forgiving hit-test padding
+  MIN_TOUCH_VISIBLE_FRACTION: 0.018,
 
   // Motion sign correction (device dependent, tune on real hardware)
   GRAVITY_SIGN_X: 1,

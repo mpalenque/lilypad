@@ -1,12 +1,12 @@
 // State machine + main loop tying together camera, motion, physics, toys, UI and FX.
-import { CONFIG } from './config.js?v=17';
-import { loadManifest } from './manifest.js?v=17';
-import { UI } from './ui.js?v=17';
-import { Renderer } from './renderer.js?v=17';
-import { startCamera } from './camera.js?v=17';
-import { Motion } from './motion.js?v=17';
-import { ToyManager } from './toys.js?v=17';
-import { Fx } from './fx.js?v=17';
+import { CONFIG } from './config.js?v=18';
+import { loadManifest } from './manifest.js?v=18';
+import { UI } from './ui.js?v=18';
+import { Renderer } from './renderer.js?v=18';
+import { startCamera } from './camera.js?v=18';
+import { Motion } from './motion.js?v=18';
+import { ToyManager } from './toys.js?v=18';
+import { Fx } from './fx.js?v=18';
 
 const stageEl = document.getElementById('stage');
 const cameraEl = document.getElementById('camera');

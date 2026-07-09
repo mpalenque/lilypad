@@ -1,6 +1,5 @@
-// Fast horizontal slide. No wobble/vertical looseness: keep the proven tilt
-// behavior stable and bounded.
-import { CONFIG } from './config.js?v=17';
+// Fast bounded slide with optional diagonal entry and a light edge bounce.
+import { CONFIG } from './config.js?v=18';
 
 function clamp01(value) {
   return Math.max(0, Math.min(1, value));
@@ -19,10 +18,24 @@ function triggerBounce(toy, impactSpeed) {
   toy.bounceAmp = CONFIG.BOUNCE_MAX_PX * (0.35 + strength * 0.65);
 }
 
+function entryProgress(toy) {
+  const range = Math.abs(toy.restX - toy.hiddenX);
+  if (range <= 0) return 1;
+  const traveled = toy.side === 'right' ? toy.hiddenX - toy.x : toy.x - toy.hiddenX;
+  return clamp01(traveled / range);
+}
+
+function lerp(a, b, t) {
+  return a + (b - a) * t;
+}
+
 function updateBounce(toy, dt) {
   toy.renderX = toy.x;
   toy.renderY = toy.y;
-  toy.angle = 0;
+  const progress = entryProgress(toy);
+  const settle = Math.pow(1 - progress, 0.72);
+  const entryAngle = toy.entryAngle || 0;
+  toy.angle = entryAngle * settle;
 
   if (toy.bounceT == null || toy.bounceAmp == null) return;
 
@@ -39,7 +52,7 @@ function updateBounce(toy, dt) {
   const wave = Math.sin(t * Math.PI * 2.35);
   const inwardOnly = Math.abs(wave);
   toy.renderX = toy.x + inwardDir * toy.bounceAmp * envelope * inwardOnly;
-  toy.angle = inwardDir * CONFIG.BOUNCE_ANGLE_DEG * envelope * wave;
+  toy.angle += inwardDir * CONFIG.BOUNCE_ANGLE_DEG * envelope * wave;
 }
 
 export function stepToyPhysics(toy, dt, revealAmount, retreatAmount) {
@@ -86,6 +99,7 @@ export function stepToyPhysics(toy, dt, revealAmount, retreatAmount) {
     }
   }
 
-  toy.y = CONFIG.TOY_Y;
+  const progress = entryProgress(toy);
+  toy.y = lerp(toy.hiddenY ?? CONFIG.TOY_Y, toy.restY ?? CONFIG.TOY_Y, progress);
   updateBounce(toy, dt);
 }
