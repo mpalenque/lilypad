@@ -1,6 +1,6 @@
 // Tilt-revealed toys using the split-alpha video clips.
-import { CONFIG } from './config.js?v=20';
-import { stepToyPhysics } from './physics.js?v=20';
+import { CONFIG } from './config.js?v=21';
+import { stepToyPhysics } from './physics.js?v=21';
 
 let toyIdCounter = 0;
 
@@ -172,6 +172,7 @@ export class ToyManager {
     this._gestureReady = false;
     this._neutralTime = 0;
     this._spawnCooldown = 0;
+    this._lastSpawnSide = null;
     this._destroyTex = null;
   }
 
@@ -205,6 +206,7 @@ export class ToyManager {
     this._gestureReady = false;
     this._neutralTime = 0;
     this._spawnCooldown = 0;
+    this._lastSpawnSide = null;
   }
 
   getActiveClips() {
@@ -260,6 +262,7 @@ export class ToyManager {
       bornAt: performance.now(),
     };
     this.toys.push(toy);
+    this._lastSpawnSide = side;
     return toy;
   }
 
@@ -278,8 +281,10 @@ export class ToyManager {
     const rightAmount = -signedTilt;
     const activeSide = leftAmount > CONFIG.TILT_ENTER ? 'right' : rightAmount > CONFIG.TILT_ENTER ? 'left' : null;
 
+    const noActiveToy = this.toys.length === 0;
+
     if (!activeSide) {
-      if (this.toys.length === 0) {
+      if (noActiveToy) {
         this._neutralTime += dt;
         const rearmSec = this._difficultyConfig().rearmSec ?? CONFIG.TILT_REARM_SEC;
         if (this._neutralTime >= rearmSec) this._gestureReady = true;
@@ -290,8 +295,13 @@ export class ToyManager {
       this._tiltSide = activeSide;
       this._tiltSustain = 0;
       this._neutralTime = 0;
+      if (noActiveToy && activeSide !== this._lastSpawnSide) this._gestureReady = true;
     } else {
       this._neutralTime = 0;
+    }
+
+    if (noActiveToy && activeSide && activeSide !== this._lastSpawnSide) {
+      this._gestureReady = true;
     }
 
     const canSpawnSide = activeSide && this._gestureReady && this._spawnCooldown <= 0;

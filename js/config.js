@@ -1,6 +1,6 @@
 // Central tunable constants for Lilypad Shake.
 export const CONFIG = {
-  BUILD: 'LILYPAD deliberate gesture build 20',
+  BUILD: 'LILYPAD repeatable gestures build 21',
 
   STAGE_W: 1920,
   STAGE_H: 1200,
@@ -28,8 +28,8 @@ export const CONFIG = {
   BOUNCE_DURATION: 0.28,
   BOUNCE_ANGLE_DEG: 1.0,
   EXPIRE_FADE_SEC: 0.18,
-  SPAWN_COOLDOWN_SEC: 0.55,
-  TILT_REARM_SEC: 0.18,
+  SPAWN_COOLDOWN_SEC: 0.35,
+  TILT_REARM_SEC: 0.12,
 
   DIFFICULTY: {
     easy: {
@@ -37,16 +37,16 @@ export const CONFIG = {
       retreatSpeedMul: 0.75,
       easeMul: 0.9,
       expireFadeSec: 0.22,
-      spawnCooldownSec: 0.85,
-      rearmSec: 0.22,
+      spawnCooldownSec: 0.5,
+      rearmSec: 0.14,
     },
     hard: {
       slideSpeedMul: 1.45,
       retreatSpeedMul: 1.85,
       easeMul: 1.35,
       expireFadeSec: 0.08,
-      spawnCooldownSec: 0.42,
-      rearmSec: 0.14,
+      spawnCooldownSec: 0.24,
+      rearmSec: 0.08,
     },
   },
 
