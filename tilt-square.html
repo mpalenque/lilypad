@@ -87,7 +87,7 @@
       background: #1677ff;
       box-shadow: 0 18px 44px rgba(22, 119, 255, 0.46);
       pointer-events: none;
-      transition: transform 130ms cubic-bezier(0.14, 0.9, 0.3, 1), opacity 80ms linear;
+      transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1), opacity 140ms ease-out;
       will-change: transform, opacity;
     }
 
@@ -126,8 +126,8 @@
 
   <script>
     (() => {
-      const ENTER_THRESHOLD = 0.006;
-      const EXIT_THRESHOLD = 0.003;
+      const ENTER_THRESHOLD = 0.018;
+      const EXIT_THRESHOLD = 0.008;
       const REFERENCE_STABLE_DELTA = 0.01;
       const REFERENCE_SETTLE_MS = 180;
       const FIRST_TILT_HOLD_MS = 35;
@@ -150,6 +150,7 @@
       let neutralSince = null;
       let started = false;
       let squareVisible = false;
+      let squareShowSequence = 0;
       let lastTelemetryAt = 0;
 
       function report(eventName, payload, force) {
@@ -201,14 +202,21 @@
       }
 
       function showSquare(side) {
+        const showSequence = ++squareShowSequence;
         squareElement.classList.remove('visible', 'left', 'right');
         squareElement.classList.add(side);
-        requestAnimationFrame(() => squareElement.classList.add('visible'));
         squareVisible = true;
+        void squareElement.offsetWidth;
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            if (squareVisible && showSequence === squareShowSequence) squareElement.classList.add('visible');
+          });
+        });
         report('square-show', { side, center: centerTilt }, true);
       }
 
       function hideSquare() {
+        squareShowSequence++;
         squareElement.classList.remove('visible');
         squareVisible = false;
         report('square-hide', {}, true);
@@ -253,7 +261,7 @@
         activeDirection = direction;
         neutralSince = null;
         clearPendingDirection();
-        showSquare(direction > 0 ? 'left' : 'right');
+        showSquare(direction > 0 ? 'right' : 'left');
       }
 
       function handleTilt(tilt, timestamp) {
@@ -267,8 +275,10 @@
         if (magnitude <= EXIT_THRESHOLD) {
           if (neutralSince === null) neutralSince = timestamp;
           if (timestamp - neutralSince >= NEUTRAL_HOLD_MS) {
+            const shouldHideSquare = activeDirection !== 0 || squareVisible;
             activeDirection = 0;
             clearPendingDirection();
+            if (shouldHideSquare) hideSquare();
           }
           if (!squareVisible && activeDirection === 0) centerTilt += delta * 0.04;
           report('square-tilt', { tilt, center: centerTilt, delta, activeDirection, pendingDirection }, false);
