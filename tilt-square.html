@@ -157,9 +157,9 @@
           time: Math.round(now),
           ...payload,
         });
-        const blob = new Blob([body], { type: 'application/json' });
+        const blob = new Blob([body], { type: 'text/plain' });
         if (navigator.sendBeacon && navigator.sendBeacon(monitorEndpoint, blob)) return;
-        fetch(monitorEndpoint, { method: 'POST', body, keepalive: true }).catch(() => {});
+        fetch(monitorEndpoint, { method: 'POST', body, keepalive: true, mode: 'no-cors' }).catch(() => {});
       }
 
       function setStatus(message) {
