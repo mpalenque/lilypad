@@ -1,8 +1,8 @@
 // Tilt-revealed toys using the split-alpha video clips.
-import { CONFIG } from './config.js?v=25';
-import { SideGestureGate, SteeringGestureGate } from './gesture.js?v=25';
-import { isVideoTouchLocked, videoFinished } from './media.js?v=25';
-import { stepToyPhysics } from './physics.js?v=25';
+import { CONFIG } from './config.js?v=26';
+import { SideGestureGate, SteeringGestureGate } from './gesture.js?v=26';
+import { isVideoTouchLocked, videoFinished } from './media.js?v=26';
+import { stepToyPhysics } from './physics.js?v=26';
 
 let toyIdCounter = 0;
 
@@ -400,6 +400,17 @@ export class ToyManager {
 
   update(dt) {
     for (const toy of [...this.toys]) {
+      if (toy.playbackStarted && !toy.grabbing) {
+        toy.appearanceElapsed += dt;
+        if (!toy.expiring && toy.appearanceElapsed >= CONFIG.TOY_LIFETIME_SEC - CONFIG.TOY_RETREAT_LEAD_SEC) {
+          this._beginExpireToy(toy);
+        }
+        if (toy.appearanceElapsed >= CONFIG.TOY_LIFETIME_SEC) {
+          this._removeToy(toy);
+          continue;
+        }
+      }
+
       this._updateToyMedia(toy, dt);
       if (!this.toys.includes(toy)) continue;
 
@@ -429,13 +440,6 @@ export class ToyManager {
     if (!videoEl || toy.expiring || toy.grabbing) return;
 
     toy.playbackElapsed += dt;
-    if (toy.playbackStarted) {
-      toy.appearanceElapsed += dt;
-      if (toy.appearanceElapsed >= CONFIG.TOY_VISIBLE_SEC) {
-        this._beginExpireToy(toy);
-        return;
-      }
-    }
     if (isVideoTouchLocked(videoEl, CONFIG.TOUCH_DISABLE_BEFORE_END_SEC)) {
       toy.canTap = false;
     }

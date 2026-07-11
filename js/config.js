@@ -1,6 +1,6 @@
 // Central tunable constants for Lilypad Shake.
 export const CONFIG = {
-  BUILD: 'LILYPAD two-second tilt cycle build 25',
+  BUILD: 'LILYPAD two-second tilt cycle build 26',
 
   STAGE_W: 1920,
   STAGE_H: 1200,
@@ -16,7 +16,8 @@ export const CONFIG = {
   TOY_Y: 600,
   TOY_START_X_OFFSET: 22,
   TOY_INITIAL_VISIBLE_PX: 48,
-  TOY_VISIBLE_SEC: 2,
+  TOY_LIFETIME_SEC: 2,
+  TOY_RETREAT_LEAD_SEC: 0.25,
 
   // Physics — a fresh tilt gesture reveals the toy from its side; after the
   // full video ends it hides back through that same side.
