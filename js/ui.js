@@ -1,7 +1,7 @@
 // Lily UI overlay: START / INSTRUCTIONS / HUD / RESULTS screens, built from the
 // exact sprites cut from "GUI lilypad.psd", positioned via the PSD manifest.
-import { CONFIG } from './config.js?v=34';
-import { DIGIT_SLOTS } from './manifest.js?v=34';
+import { CONFIG } from './config.js?v=35';
+import { DIGIT_SLOTS } from './manifest.js?v=35';
 
 function place(el, m) {
   el.style.left = `${m.cx - m.w / 2}px`;
