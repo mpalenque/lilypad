@@ -120,7 +120,6 @@
     <p id="status">Tocá para activar la inclinación</p>
     <div id="actions">
       <button id="activate" type="button">ACTIVAR</button>
-      <button id="recenter" type="button" hidden>RECENTRAR</button>
     </div>
   </section>
   <button id="square" type="button" aria-label="Ocultar cuadrado"></button>
@@ -129,10 +128,8 @@
     (() => {
       const ENTER_THRESHOLD = 0.006;
       const EXIT_THRESHOLD = 0.003;
-      const CALIBRATION_SAMPLES = 6;
 
       const activateButton = document.getElementById('activate');
-      const recenterButton = document.getElementById('recenter');
       const squareElement = document.getElementById('square');
       const statusElement = document.getElementById('status');
       const query = new URLSearchParams(window.location.search);
@@ -140,7 +137,6 @@
       const monitorToken = query.get('monitorToken');
 
       let centerTilt = null;
-      let calibrationValues = [];
       let activeDirection = 0;
       let started = false;
       let squareVisible = false;
@@ -166,13 +162,12 @@
         statusElement.textContent = message;
       }
 
-      function resetCalibration() {
+      function beginAutomaticReference() {
         centerTilt = null;
-        calibrationValues = [];
         activeDirection = 0;
         hideSquare();
-        setStatus('Mantenela cómoda un instante');
-        report('square-recenter', {}, true);
+        setStatus('Incliná apenas hacia un lado');
+        report('square-reference-pending', {}, true);
       }
 
       function screenXFromGravity(gravityX, gravityY) {
@@ -206,12 +201,7 @@
 
       function handleTilt(tilt) {
         if (centerTilt === null) {
-          calibrationValues.push(tilt);
-          if (calibrationValues.length < CALIBRATION_SAMPLES) return;
-          centerTilt = calibrationValues.reduce((sum, value) => sum + value, 0) / calibrationValues.length;
-          calibrationValues = [];
-          setStatus('Listo: incliná apenas hacia un lado');
-          recenterButton.hidden = false;
+          centerTilt = tilt;
           report('square-ready', { center: centerTilt }, true);
           return;
         }
@@ -265,7 +255,7 @@
           started = true;
           window.addEventListener('devicemotion', onDeviceMotion, { passive: true });
           activateButton.hidden = true;
-          resetCalibration();
+          beginAutomaticReference();
           report('square-start', {}, true);
         } catch (error) {
           activateButton.disabled = false;
@@ -275,9 +265,8 @@
       }
 
       activateButton.addEventListener('click', activate);
-      recenterButton.addEventListener('click', resetCalibration);
       squareElement.addEventListener('click', hideSquare);
-      window.addEventListener('orientationchange', resetCalibration);
+      window.addEventListener('orientationchange', beginAutomaticReference);
       report('square-boot', {}, true);
     })();
   </script>
