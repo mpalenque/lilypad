@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0b1020">
+  <title>Prueba de inclinación</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: Arial, Helvetica, sans-serif;
+      background: #0b1020;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      min-height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: #0b1020;
+    }
+
+    body {
+      display: grid;
+      place-items: center;
+      touch-action: manipulation;
+    }
+
+    #statusPanel {
+      position: fixed;
+      z-index: 2;
+      top: max(24px, env(safe-area-inset-top));
+      left: 50%;
+      width: min(88vw, 540px);
+      transform: translateX(-50%);
+      text-align: center;
+    }
+
+    #status {
+      margin: 0 0 14px;
+      color: #e9f2ff;
+      font-size: clamp(16px, 2vw, 24px);
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+
+    #actions {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    button {
+      border: 0;
+      border-radius: 999px;
+      padding: 13px 20px;
+      color: #ffffff;
+      background: #1976f3;
+      font: inherit;
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 0.05em;
+      touch-action: manipulation;
+    }
+
+    button[hidden] {
+      display: none;
+    }
+
+    button:disabled {
+      opacity: 0.55;
+    }
+
+    #square {
+      position: fixed;
+      z-index: 1;
+      top: 50%;
+      width: min(28vw, 250px);
+      aspect-ratio: 1;
+      border-radius: 18px;
+      opacity: 0;
+      background: #1677ff;
+      box-shadow: 0 18px 44px rgba(22, 119, 255, 0.46);
+      pointer-events: none;
+      transition: transform 130ms cubic-bezier(0.14, 0.9, 0.3, 1), opacity 80ms linear;
+      will-change: transform, opacity;
+    }
+
+    #square.left {
+      left: 0;
+      transform: translate3d(-116%, -50%, 0);
+    }
+
+    #square.right {
+      right: 0;
+      transform: translate3d(116%, -50%, 0);
+    }
+
+    #square.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    #square.visible.left {
+      transform: translate3d(24px, -50%, 0);
+    }
+
+    #square.visible.right {
+      transform: translate3d(-24px, -50%, 0);
+    }
+  </style>
+</head>
+<body>
+  <section id="statusPanel">
+    <p id="status">Tocá para activar la inclinación</p>
+    <div id="actions">
+      <button id="activate" type="button">ACTIVAR</button>
+      <button id="recenter" type="button" hidden>RECENTRAR</button>
+    </div>
+  </section>
+  <button id="square" type="button" aria-label="Ocultar cuadrado"></button>
+
+  <script>
+    (() => {
+      const ENTER_THRESHOLD = 0.006;
+      const EXIT_THRESHOLD = 0.003;
+      const CALIBRATION_SAMPLES = 6;
+
+      const activateButton = document.getElementById('activate');
+      const recenterButton = document.getElementById('recenter');
+      const squareElement = document.getElementById('square');
+      const statusElement = document.getElementById('status');
+      const query = new URLSearchParams(window.location.search);
+      const monitorEndpoint = query.get('monitor');
+      const monitorToken = query.get('monitorToken');
+
+      let centerTilt = null;
+      let calibrationValues = [];
+      let activeDirection = 0;
+      let started = false;
+      let squareVisible = false;
+      let lastTelemetryAt = 0;
+
+      function report(eventName, payload, force) {
+        if (!monitorEndpoint || !monitorToken) return;
+        const now = performance.now();
+        if (!force && now - lastTelemetryAt < 160) return;
+        lastTelemetryAt = now;
+        const body = JSON.stringify({
+          token: monitorToken,
+          event: eventName,
+          time: Math.round(now),
+          ...payload,
+        });
+        const blob = new Blob([body], { type: 'application/json' });
+        if (navigator.sendBeacon && navigator.sendBeacon(monitorEndpoint, blob)) return;
+        fetch(monitorEndpoint, { method: 'POST', body, keepalive: true }).catch(() => {});
+      }
+
+      function setStatus(message) {
+        statusElement.textContent = message;
+      }
+
+      function resetCalibration() {
+        centerTilt = null;
+        calibrationValues = [];
+        activeDirection = 0;
+        hideSquare();
+        setStatus('Mantenela cómoda un instante');
+        report('square-recenter', {}, true);
+      }
+
+      function screenXFromGravity(gravityX, gravityY) {
+        const angle = window.screen.orientation?.angle ?? window.orientation ?? 0;
+        switch (angle) {
+          case 90:
+            return -gravityY;
+          case -90:
+          case 270:
+            return gravityY;
+          case 180:
+            return gravityX;
+          default:
+            return -gravityX;
+        }
+      }
+
+      function showSquare(side) {
+        squareElement.classList.remove('visible', 'left', 'right');
+        squareElement.classList.add(side);
+        requestAnimationFrame(() => squareElement.classList.add('visible'));
+        squareVisible = true;
+        report('square-show', { side, center: centerTilt }, true);
+      }
+
+      function hideSquare() {
+        squareElement.classList.remove('visible');
+        squareVisible = false;
+        report('square-hide', {}, true);
+      }
+
+      function handleTilt(tilt) {
+        if (centerTilt === null) {
+          calibrationValues.push(tilt);
+          if (calibrationValues.length < CALIBRATION_SAMPLES) return;
+          centerTilt = calibrationValues.reduce((sum, value) => sum + value, 0) / calibrationValues.length;
+          calibrationValues = [];
+          setStatus('Listo: incliná apenas hacia un lado');
+          recenterButton.hidden = false;
+          report('square-ready', { center: centerTilt }, true);
+          return;
+        }
+
+        const delta = tilt - centerTilt;
+        const magnitude = Math.abs(delta);
+        if (magnitude <= EXIT_THRESHOLD) {
+          activeDirection = 0;
+          if (!squareVisible) centerTilt += delta * 0.04;
+          report('square-tilt', { tilt, center: centerTilt, delta, activeDirection }, false);
+          return;
+        }
+
+        if (magnitude < ENTER_THRESHOLD) {
+          report('square-tilt', { tilt, center: centerTilt, delta, activeDirection }, false);
+          return;
+        }
+
+        const direction = delta > 0 ? 1 : -1;
+        if (activeDirection === 0 || direction !== activeDirection) {
+          activeDirection = direction;
+          showSquare(direction > 0 ? 'left' : 'right');
+        }
+        report('square-tilt', { tilt, center: centerTilt, delta, activeDirection }, false);
+      }
+
+      function onDeviceMotion(event) {
+        const totalAcceleration = event.accelerationIncludingGravity;
+        if (!totalAcceleration || !Number.isFinite(totalAcceleration.x) || !Number.isFinite(totalAcceleration.y)) return;
+        const linearAcceleration = event.acceleration;
+        const gravityX = Number.isFinite(linearAcceleration?.x)
+          ? totalAcceleration.x - linearAcceleration.x
+          : totalAcceleration.x;
+        const gravityY = Number.isFinite(linearAcceleration?.y)
+          ? totalAcceleration.y - linearAcceleration.y
+          : totalAcceleration.y;
+        const screenTilt = screenXFromGravity(gravityX, gravityY) / 9.8;
+        if (Number.isFinite(screenTilt)) handleTilt(screenTilt);
+      }
+
+      async function activate() {
+        if (started) return;
+        activateButton.disabled = true;
+        try {
+          const motionEvent = window.DeviceMotionEvent;
+          if (!motionEvent) throw new Error('El navegador no expone sensores de movimiento');
+          if (typeof motionEvent.requestPermission === 'function') {
+            const permission = await motionEvent.requestPermission();
+            if (permission !== 'granted') throw new Error('Permiso de movimiento rechazado');
+          }
+          started = true;
+          window.addEventListener('devicemotion', onDeviceMotion, { passive: true });
+          activateButton.hidden = true;
+          resetCalibration();
+          report('square-start', {}, true);
+        } catch (error) {
+          activateButton.disabled = false;
+          setStatus(error.message || 'No se pudo activar la inclinación');
+          report('square-error', { message: String(error.message || error) }, true);
+        }
+      }
+
+      activateButton.addEventListener('click', activate);
+      recenterButton.addEventListener('click', resetCalibration);
+      squareElement.addEventListener('click', hideSquare);
+      window.addEventListener('orientationchange', resetCalibration);
+      report('square-boot', {}, true);
+    })();
+  </script>
+</body>
+</html>
