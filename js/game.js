@@ -1,13 +1,13 @@
 // State machine + main loop tying together camera, motion, physics, toys, UI and FX.
-import { CONFIG } from './config.js?v=30';
-import { loadManifest } from './manifest.js?v=30';
-import { UI } from './ui.js?v=30';
-import { Renderer } from './renderer.js?v=30';
-import { startCamera } from './camera.js?v=30';
-import { Motion } from './motion.js?v=30';
-import { ToyManager } from './toys.js?v=30';
-import { Fx } from './fx.js?v=30';
-import { Monitor } from './monitor.js?v=30';
+import { CONFIG } from './config.js?v=31';
+import { loadManifest } from './manifest.js?v=31';
+import { UI } from './ui.js?v=31';
+import { Renderer } from './renderer.js?v=31';
+import { startCamera } from './camera.js?v=31';
+import { Motion } from './motion.js?v=31';
+import { ToyManager } from './toys.js?v=31';
+import { Fx } from './fx.js?v=31';
+import { Monitor } from './monitor.js?v=31';
 
 const stageEl = document.getElementById('stage');
 const cameraEl = document.getElementById('camera');
@@ -101,6 +101,7 @@ class Game {
         tilt: sample.x,
         rawTilt: sample.rawGravityX,
         center: this.toys.neutralTiltX,
+        waitingForCenter: this.toys.neutralTiltX === null,
         gate: this.toys.gestureGate.state,
         toys: this.toys.toys.length,
         spawned: toy ? { side: toy.side, clip: toy.clip } : null,

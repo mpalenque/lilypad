@@ -1,8 +1,8 @@
 // Tilt-revealed toys using the split-alpha video clips.
-import { CONFIG } from './config.js?v=30';
-import { SideGestureGate } from './gesture.js?v=30';
-import { isVideoTouchLocked, videoFinished } from './media.js?v=30';
-import { stepToyPhysics } from './physics.js?v=30';
+import { CONFIG } from './config.js?v=31';
+import { SideGestureGate } from './gesture.js?v=31';
+import { isVideoTouchLocked, videoFinished } from './media.js?v=31';
+import { stepToyPhysics } from './physics.js?v=31';
 
 let toyIdCounter = 0;
 
@@ -292,7 +292,10 @@ export class ToyManager {
   handleLateralMotion(sample) {
     if (!Number.isFinite(sample.x)) return null;
     const timestamp = Number.isFinite(sample.timestamp) ? sample.timestamp : performance.now();
-    if (this.neutralTiltX === null) this.neutralTiltX = sample.x;
+    if (this.neutralTiltX === null) {
+      if (Math.abs(sample.x) > CONFIG.TILT_NEUTRAL_CAPTURE_MAX) return null;
+      this.neutralTiltX = sample.x;
+    }
     let relativeTilt = sample.x - this.neutralTiltX;
     if (Math.abs(relativeTilt) <= CONFIG.TILT_EXIT) {
       this.neutralTiltX += relativeTilt * CONFIG.TILT_NEUTRAL_FOLLOW;
