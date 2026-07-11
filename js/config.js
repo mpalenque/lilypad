@@ -1,6 +1,6 @@
 // Central tunable constants for Lilypad Shake.
 export const CONFIG = {
-  BUILD: 'LILYPAD gravity tilt-only build 29',
+  BUILD: 'LILYPAD calibrated gravity tilt build 30',
 
   STAGE_W: 1920,
   STAGE_H: 1200,
@@ -66,6 +66,7 @@ export const CONFIG = {
   TILT_ENTER: 0.055,
   TILT_EXIT: 0.02,
   TILT_FAST_LOW_PASS: 0.8,
+  TILT_NEUTRAL_FOLLOW: 0.12,
 
   // Tap
   TAP_INFLATE: 50, // px, forgiving hit-test padding

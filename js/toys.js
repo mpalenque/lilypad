@@ -1,8 +1,8 @@
 // Tilt-revealed toys using the split-alpha video clips.
-import { CONFIG } from './config.js?v=29';
-import { SideGestureGate } from './gesture.js?v=29';
-import { isVideoTouchLocked, videoFinished } from './media.js?v=29';
-import { stepToyPhysics } from './physics.js?v=29';
+import { CONFIG } from './config.js?v=30';
+import { SideGestureGate } from './gesture.js?v=30';
+import { isVideoTouchLocked, videoFinished } from './media.js?v=30';
+import { stepToyPhysics } from './physics.js?v=30';
 
 let toyIdCounter = 0;
 
@@ -220,6 +220,7 @@ export class ToyManager {
       exitThreshold: CONFIG.TILT_EXIT,
       rearmMs: CONFIG.DIFFICULTY.easy.rearmSec * 1000,
     });
+    this.neutralTiltX = null;
     this._preparedClips = [];
     this._destroyTex = null;
     this._fillPreparedQueue();
@@ -245,7 +246,7 @@ export class ToyManager {
 
   debugVideoInfo() {
     const t = this.toys[0];
-    if (!t || !t.videoEl) return `video: (none)  tilt=${this.gestureGate.state}`;
+    if (!t || !t.videoEl) return `video: (none)  tilt=${this.gestureGate.state} center=${this.neutralTiltX}`;
     const v = t.videoEl;
     return `video ${t.clip} ${t.side}/${this.difficulty}: rs=${v.readyState} ${v.paused ? 'paused' : 'playing'} t=${v.currentTime.toFixed(2)} tilt=${this.gestureGate.state}`;
   }
@@ -253,6 +254,7 @@ export class ToyManager {
   reset() {
     for (const toy of [...this.toys]) this._removeToy(toy);
     this.gestureGate.reset();
+    this.neutralTiltX = null;
     this._fillPreparedQueue();
   }
 
@@ -290,7 +292,13 @@ export class ToyManager {
   handleLateralMotion(sample) {
     if (!Number.isFinite(sample.x)) return null;
     const timestamp = Number.isFinite(sample.timestamp) ? sample.timestamp : performance.now();
-    const signedTilt = CONFIG.TILT_SIGN_X * sample.x;
+    if (this.neutralTiltX === null) this.neutralTiltX = sample.x;
+    let relativeTilt = sample.x - this.neutralTiltX;
+    if (Math.abs(relativeTilt) <= CONFIG.TILT_EXIT) {
+      this.neutralTiltX += relativeTilt * CONFIG.TILT_NEUTRAL_FOLLOW;
+      relativeTilt = sample.x - this.neutralTiltX;
+    }
+    const signedTilt = CONFIG.TILT_SIGN_X * relativeTilt;
     const wasWaitingForCenter = this.gestureGate.state === 'waiting-neutral';
     const side = this.gestureGate.update(signedTilt, timestamp);
     if (wasWaitingForCenter && this.gestureGate.state === 'armed') this._retreatActiveToys();

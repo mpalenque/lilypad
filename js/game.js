@@ -1,12 +1,13 @@
 // State machine + main loop tying together camera, motion, physics, toys, UI and FX.
-import { CONFIG } from './config.js?v=29';
-import { loadManifest } from './manifest.js?v=29';
-import { UI } from './ui.js?v=29';
-import { Renderer } from './renderer.js?v=29';
-import { startCamera } from './camera.js?v=29';
-import { Motion } from './motion.js?v=29';
-import { ToyManager } from './toys.js?v=29';
-import { Fx } from './fx.js?v=29';
+import { CONFIG } from './config.js?v=30';
+import { loadManifest } from './manifest.js?v=30';
+import { UI } from './ui.js?v=30';
+import { Renderer } from './renderer.js?v=30';
+import { startCamera } from './camera.js?v=30';
+import { Motion } from './motion.js?v=30';
+import { ToyManager } from './toys.js?v=30';
+import { Fx } from './fx.js?v=30';
+import { Monitor } from './monitor.js?v=30';
 
 const stageEl = document.getElementById('stage');
 const cameraEl = document.getElementById('camera');
@@ -67,6 +68,7 @@ class Game {
     this.timeLeft = CONFIG.GAME_SECONDS;
     this.resultsTimer = 0;
     this.motion = new Motion();
+    this.monitor = new Monitor();
     this.difficulty = 'easy';
     this._lastT = null;
     this._batteryTick = 0;
@@ -91,8 +93,18 @@ class Game {
     this.toys.onScore = (toy) => this._onToyGrabbed(toy);
 
     this.motion.on('lateral', (sample) => {
-      if (this.state !== STATE.PLAYING) return;
-      this.toys.handleLateralMotion(sample);
+      const toy = this.state === STATE.PLAYING ? this.toys.handleLateralMotion(sample) : null;
+      this.monitor.report('lateral', {
+        state: this.state,
+        permission: this.motion.permissionState,
+        events: this.motion.eventCount,
+        tilt: sample.x,
+        rawTilt: sample.rawGravityX,
+        center: this.toys.neutralTiltX,
+        gate: this.toys.gestureGate.state,
+        toys: this.toys.toys.length,
+        spawned: toy ? { side: toy.side, clip: toy.clip } : null,
+      }, Boolean(toy));
     });
 
     this.motion.on('shake', (intensity) => {
@@ -116,12 +128,17 @@ class Game {
 
     // Debug/test hook — harmless to leave in; not part of the play experience.
     window.__game = this;
+    this.monitor.report('boot', { build: CONFIG.BUILD, state: this.state }, true);
+    window.addEventListener('error', (event) => {
+      this.monitor.report('error', { message: String(event.message) }, true);
+    });
   }
 
   _onOk() {
     // Guard against a double tap re-firing the whole permission dance.
     if (this._okHandled) return;
     this._okHandled = true;
+    this.monitor.report('ok', { state: this.state }, true);
 
     // All three things below need the transient user-activation from this tap,
     // so they must be KICKED OFF synchronously here (before any await). We fire
@@ -133,11 +150,17 @@ class Game {
       .requestPermission()
       .then((granted) => {
         if (granted) this.motion.start();
+        this.monitor.report('motion-permission', {
+          granted,
+          permission: this.motion.permissionState,
+          started: this.motion._started,
+        }, true);
       })
       .catch((err) => console.warn('[game] motion permission error:', err));
 
     this.state = STATE.DIFFICULTY;
     this.ui.showDifficulty();
+    this.monitor.report('difficulty', { mode: this.difficulty }, true);
   }
 
   _onDifficulty(mode) {
@@ -156,6 +179,7 @@ class Game {
     this.ui.updateTimer(this.timeLeft);
     this.state = STATE.PLAYING;
     this.ui.showHud();
+    this.monitor.report('playing', { difficulty: this.difficulty }, true);
   }
 
   _goToStart() {
@@ -165,6 +189,7 @@ class Game {
     this.toys.reset();
     this.state = STATE.START;
     this.ui.showStart();
+    this.monitor.report('start', {}, true);
   }
 
   _goToResults() {
@@ -173,6 +198,7 @@ class Game {
     this.toys.reset();
     this.fx.playGameOver();
     this.ui.showResults(this.foundCount);
+    this.monitor.report('results', { points: this.foundCount }, true);
   }
 
   _onToyGrabbed(toy) {
