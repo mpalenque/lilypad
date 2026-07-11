@@ -1,5 +1,5 @@
 // Fast bounded horizontal slide with a light edge bounce.
-import { CONFIG } from './config.js?v=35';
+import { CONFIG } from './config.js?v=36';
 
 function clamp01(value) {
   return Math.max(0, Math.min(1, value));

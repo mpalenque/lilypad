@@ -1,6 +1,6 @@
 // Central tunable constants for Lilypad Shake.
 export const CONFIG = {
-  BUILD: 'LILYPAD instant micro-tilt build 35',
+  BUILD: 'LILYPAD bidirectional micro-tilt build 36',
 
   STAGE_W: 1920,
   STAGE_H: 1200,
@@ -63,8 +63,8 @@ export const CONFIG = {
   // Screen-space gravity is the only trigger. A left edge that is lower has a
   // negative X value and must reveal the video on the right (and vice versa).
   TILT_SIGN_X: -1,
-  TILT_ENTER: 0.008,
-  TILT_EXIT: 0.004,
+  TILT_ENTER: 0.006,
+  TILT_EXIT: 0.003,
   TILT_FAST_LOW_PASS: 1.0,
   TILT_NEUTRAL_CAPTURE_MAX: 0.35,
   TILT_NEUTRAL_STABLE_DELTA: 0.01,

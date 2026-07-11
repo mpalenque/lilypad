@@ -1,8 +1,8 @@
 // Tilt-revealed toys using the split-alpha video clips.
-import { CONFIG } from './config.js?v=35';
-import { SideGestureGate } from './gesture.js?v=35';
-import { isVideoTouchLocked, videoFinished } from './media.js?v=35';
-import { stepToyPhysics } from './physics.js?v=35';
+import { CONFIG } from './config.js?v=36';
+import { SideGestureGate } from './gesture.js?v=36';
+import { isVideoTouchLocked, videoFinished } from './media.js?v=36';
+import { stepToyPhysics } from './physics.js?v=36';
 
 let toyIdCounter = 0;
 
