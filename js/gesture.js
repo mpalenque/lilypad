@@ -39,49 +39,54 @@ export class SideGestureGate {
 }
 
 export class SteeringGestureGate {
-  constructor({ triggerAngleDeg, centerAngleDeg, rateDeadzoneDegSec, centerRateDegSec, rearmMs }) {
-    this.triggerAngleDeg = triggerAngleDeg;
-    this.centerAngleDeg = centerAngleDeg;
-    this.rateDeadzoneDegSec = rateDeadzoneDegSec;
-    this.centerRateDegSec = centerRateDegSec;
+  constructor({ triggerRateDegSec, returnRateDegSec, neutralRateDegSec, rearmMs }) {
+    this.triggerRateDegSec = triggerRateDegSec;
+    this.returnRateDegSec = returnRateDegSec;
+    this.neutralRateDegSec = neutralRateDegSec;
     this.rearmMs = rearmMs;
     this.reset();
   }
 
   reset() {
     this.state = 'armed';
-    this.angleDeg = 0;
-    this.centerSince = null;
+    this.triggerDirection = 0;
+    this.returnSeen = false;
+    this.neutralSince = null;
   }
 
   setRearmMs(rearmMs) {
     this.rearmMs = rearmMs;
   }
 
-  update(rateDegSec, dtSec, timestampMs) {
-    const usableRate = Math.abs(rateDegSec) >= this.rateDeadzoneDegSec ? rateDegSec : 0;
-    this.angleDeg = Math.max(-90, Math.min(90, this.angleDeg + usableRate * dtSec));
-
+  update(rateDegSec, timestampMs) {
     if (this.state === 'armed') {
-      if (usableRate === 0) this.angleDeg *= Math.max(0, 1 - dtSec * 8);
-      if (Math.abs(this.angleDeg) < this.triggerAngleDeg) return null;
+      if (Math.abs(rateDegSec) < this.triggerRateDegSec) return null;
 
       this.state = 'waiting-center';
-      this.centerSince = null;
-      return this.angleDeg > 0 ? 'right' : 'left';
+      this.triggerDirection = Math.sign(rateDegSec);
+      this.returnSeen = false;
+      this.neutralSince = null;
+      return this.triggerDirection > 0 ? 'right' : 'left';
     }
 
-    const isCentered = Math.abs(this.angleDeg) <= this.centerAngleDeg && Math.abs(rateDegSec) <= this.centerRateDegSec;
-    if (!isCentered) {
-      this.centerSince = null;
+    if (!this.returnSeen) {
+      if (Math.sign(rateDegSec) === -this.triggerDirection && Math.abs(rateDegSec) >= this.returnRateDegSec) {
+        this.returnSeen = true;
+      }
       return null;
     }
 
-    if (this.centerSince === null) this.centerSince = timestampMs;
-    if (timestampMs - this.centerSince >= this.rearmMs) {
+    if (Math.abs(rateDegSec) > this.neutralRateDegSec) {
+      this.neutralSince = null;
+      return null;
+    }
+
+    if (this.neutralSince === null) this.neutralSince = timestampMs;
+    if (timestampMs - this.neutralSince >= this.rearmMs) {
       this.state = 'armed';
-      this.angleDeg = 0;
-      this.centerSince = null;
+      this.triggerDirection = 0;
+      this.returnSeen = false;
+      this.neutralSince = null;
     }
     return null;
   }

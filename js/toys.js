@@ -1,8 +1,8 @@
 // Tilt-revealed toys using the split-alpha video clips.
-import { CONFIG } from './config.js?v=23';
-import { SideGestureGate, SteeringGestureGate } from './gesture.js?v=23';
-import { isVideoTouchLocked, videoFinished } from './media.js?v=23';
-import { stepToyPhysics } from './physics.js?v=23';
+import { CONFIG } from './config.js?v=24';
+import { SideGestureGate, SteeringGestureGate } from './gesture.js?v=24';
+import { isVideoTouchLocked, videoFinished } from './media.js?v=24';
+import { stepToyPhysics } from './physics.js?v=24';
 
 let toyIdCounter = 0;
 
@@ -221,11 +221,10 @@ export class ToyManager {
       rearmMs: CONFIG.DIFFICULTY.easy.rearmSec * 1000,
     });
     this.steeringGate = new SteeringGestureGate({
-      triggerAngleDeg: CONFIG.STEERING_TRIGGER_ANGLE_DEG,
-      centerAngleDeg: CONFIG.STEERING_CENTER_ANGLE_DEG,
-      rateDeadzoneDegSec: CONFIG.STEERING_RATE_DEADZONE_DEG_SEC,
-      centerRateDegSec: CONFIG.STEERING_CENTER_RATE_DEG_SEC,
-      rearmMs: CONFIG.DIFFICULTY.easy.rearmSec * 1000,
+      triggerRateDegSec: CONFIG.STEERING_TRIGGER_RATE_DEG_SEC,
+      returnRateDegSec: CONFIG.STEERING_RETURN_RATE_DEG_SEC,
+      neutralRateDegSec: CONFIG.STEERING_NEUTRAL_RATE_DEG_SEC,
+      rearmMs: CONFIG.STEERING_REARM_MS,
     });
     this._preparedClips = [];
     this._destroyTex = null;
@@ -244,7 +243,6 @@ export class ToyManager {
     this.difficulty = mode === 'hard' ? 'hard' : 'easy';
     const rearmSec = this._difficultyConfig().rearmSec ?? CONFIG.TILT_REARM_SEC;
     this.gestureGate.setRearmMs(rearmSec * 1000);
-    this.steeringGate.setRearmMs(rearmSec * 1000);
   }
 
   _difficultyConfig() {
@@ -303,21 +301,25 @@ export class ToyManager {
     const side = this.gestureGate.update(signedTilt, timestamp);
     if (!side) return null;
     this.steeringGate.reset();
-    return this.spawnFromSide(side);
+    return this.spawnFromSide(side, true);
   }
 
   handleSteeringMotion(sample) {
-    if (!Number.isFinite(sample.rate) || !Number.isFinite(sample.dt)) return null;
+    if (!Number.isFinite(sample.rate)) return null;
     const timestamp = Number.isFinite(sample.timestamp) ? sample.timestamp : performance.now();
     const signedRate = CONFIG.STEERING_SIGN * sample.rate;
-    const side = this.steeringGate.update(signedRate, sample.dt, timestamp);
+    const side = this.steeringGate.update(signedRate, timestamp);
     if (!side) return null;
     this.gestureGate.reset();
-    return this.spawnFromSide(side);
+    return this.spawnFromSide(side, true);
   }
 
-  spawnFromSide(side) {
-    if (this.toys.length >= CONFIG.MAX_CONCURRENT_TOYS) return null;
+  spawnFromSide(side, replaceActive = false) {
+    if (replaceActive) {
+      for (const toy of [...this.toys]) this._removeToy(toy);
+    } else if (this.toys.length >= CONFIG.MAX_CONCURRENT_TOYS) {
+      return null;
+    }
 
     const acquired = this._acquirePreparedVideo();
     if (!acquired) return null;

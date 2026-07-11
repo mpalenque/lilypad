@@ -1,6 +1,6 @@
 // Central tunable constants for Lilypad Shake.
 export const CONFIG = {
-  BUILD: 'LILYPAD steering gestures build 23',
+  BUILD: 'LILYPAD repeatable steering build 24',
 
   STAGE_W: 1920,
   STAGE_H: 1200,
@@ -66,10 +66,10 @@ export const CONFIG = {
   TILT_FAST_LOW_PASS: 0.72,
 
   STEERING_SIGN: 1,
-  STEERING_TRIGGER_ANGLE_DEG: 2.5,
-  STEERING_CENTER_ANGLE_DEG: 1.25,
-  STEERING_RATE_DEADZONE_DEG_SEC: 1.5,
-  STEERING_CENTER_RATE_DEG_SEC: 4,
+  STEERING_TRIGGER_RATE_DEG_SEC: 4,
+  STEERING_RETURN_RATE_DEG_SEC: 1.5,
+  STEERING_NEUTRAL_RATE_DEG_SEC: 1,
+  STEERING_REARM_MS: 40,
   STEERING_MAX_DT_SEC: 0.05,
 
   // Tap
