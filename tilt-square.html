@@ -128,6 +128,11 @@
     (() => {
       const ENTER_THRESHOLD = 0.006;
       const EXIT_THRESHOLD = 0.003;
+      const REFERENCE_STABLE_DELTA = 0.01;
+      const REFERENCE_SETTLE_MS = 180;
+      const FIRST_TILT_HOLD_MS = 35;
+      const OPPOSITE_TILT_HOLD_MS = 140;
+      const NEUTRAL_HOLD_MS = 80;
 
       const activateButton = document.getElementById('activate');
       const squareElement = document.getElementById('square');
@@ -137,7 +142,12 @@
       const monitorToken = query.get('monitorToken');
 
       let centerTilt = null;
+      let referenceCandidate = null;
+      let referenceCandidateSince = null;
       let activeDirection = 0;
+      let pendingDirection = 0;
+      let pendingDirectionSince = null;
+      let neutralSince = null;
       let started = false;
       let squareVisible = false;
       let lastTelemetryAt = 0;
@@ -164,7 +174,12 @@
 
       function beginAutomaticReference() {
         centerTilt = null;
+        referenceCandidate = null;
+        referenceCandidateSince = null;
         activeDirection = 0;
+        pendingDirection = 0;
+        pendingDirectionSince = null;
+        neutralSince = null;
         hideSquare();
         setStatus('Incliná apenas hacia un lado');
         report('square-reference-pending', {}, true);
@@ -199,33 +214,77 @@
         report('square-hide', {}, true);
       }
 
-      function handleTilt(tilt) {
+      function clearPendingDirection() {
+        pendingDirection = 0;
+        pendingDirectionSince = null;
+      }
+
+      function captureAutomaticReference(tilt, timestamp) {
+        if (referenceCandidate === null || Math.abs(tilt - referenceCandidate) > REFERENCE_STABLE_DELTA) {
+          referenceCandidate = tilt;
+          referenceCandidateSince = timestamp;
+          return false;
+        }
+        referenceCandidate += (tilt - referenceCandidate) * 0.25;
+        if (timestamp - referenceCandidateSince < REFERENCE_SETTLE_MS) return false;
+        centerTilt = referenceCandidate;
+        referenceCandidate = null;
+        referenceCandidateSince = null;
+        setStatus('Listo: incliná apenas hacia un lado');
+        report('square-ready', { center: centerTilt }, true);
+        return true;
+      }
+
+      function triggerAfterHold(direction, timestamp) {
+        const isOppositeDirection = activeDirection !== 0 && direction !== activeDirection;
+        if (activeDirection !== 0 && !isOppositeDirection) {
+          clearPendingDirection();
+          return;
+        }
+
+        if (pendingDirection !== direction) {
+          pendingDirection = direction;
+          pendingDirectionSince = timestamp;
+          return;
+        }
+
+        const requiredHold = isOppositeDirection ? OPPOSITE_TILT_HOLD_MS : FIRST_TILT_HOLD_MS;
+        if (timestamp - pendingDirectionSince < requiredHold) return;
+        activeDirection = direction;
+        neutralSince = null;
+        clearPendingDirection();
+        showSquare(direction > 0 ? 'left' : 'right');
+      }
+
+      function handleTilt(tilt, timestamp) {
         if (centerTilt === null) {
-          centerTilt = tilt;
-          report('square-ready', { center: centerTilt }, true);
+          captureAutomaticReference(tilt, timestamp);
           return;
         }
 
         const delta = tilt - centerTilt;
         const magnitude = Math.abs(delta);
         if (magnitude <= EXIT_THRESHOLD) {
-          activeDirection = 0;
-          if (!squareVisible) centerTilt += delta * 0.04;
-          report('square-tilt', { tilt, center: centerTilt, delta, activeDirection }, false);
+          if (neutralSince === null) neutralSince = timestamp;
+          if (timestamp - neutralSince >= NEUTRAL_HOLD_MS) {
+            activeDirection = 0;
+            clearPendingDirection();
+          }
+          if (!squareVisible && activeDirection === 0) centerTilt += delta * 0.04;
+          report('square-tilt', { tilt, center: centerTilt, delta, activeDirection, pendingDirection }, false);
           return;
         }
 
+        neutralSince = null;
         if (magnitude < ENTER_THRESHOLD) {
-          report('square-tilt', { tilt, center: centerTilt, delta, activeDirection }, false);
+          clearPendingDirection();
+          report('square-tilt', { tilt, center: centerTilt, delta, activeDirection, pendingDirection }, false);
           return;
         }
 
         const direction = delta > 0 ? 1 : -1;
-        if (activeDirection === 0 || direction !== activeDirection) {
-          activeDirection = direction;
-          showSquare(direction > 0 ? 'left' : 'right');
-        }
-        report('square-tilt', { tilt, center: centerTilt, delta, activeDirection }, false);
+        triggerAfterHold(direction, timestamp);
+        report('square-tilt', { tilt, center: centerTilt, delta, activeDirection, pendingDirection }, false);
       }
 
       function onDeviceMotion(event) {
@@ -239,7 +298,7 @@
           ? totalAcceleration.y - linearAcceleration.y
           : totalAcceleration.y;
         const screenTilt = screenXFromGravity(gravityX, gravityY) / 9.8;
-        if (Number.isFinite(screenTilt)) handleTilt(screenTilt);
+        if (Number.isFinite(screenTilt)) handleTilt(screenTilt, performance.now());
       }
 
       async function activate() {
