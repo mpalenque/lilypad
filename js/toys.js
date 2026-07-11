@@ -1,8 +1,8 @@
 // Tilt-revealed toys using the split-alpha video clips.
-import { CONFIG } from './config.js?v=26';
-import { SideGestureGate, SteeringGestureGate } from './gesture.js?v=26';
-import { isVideoTouchLocked, videoFinished } from './media.js?v=26';
-import { stepToyPhysics } from './physics.js?v=26';
+import { CONFIG } from './config.js?v=27';
+import { AbsoluteSteeringGate, SideGestureGate, SteeringGestureGate } from './gesture.js?v=27';
+import { isVideoTouchLocked, videoFinished } from './media.js?v=27';
+import { stepToyPhysics } from './physics.js?v=27';
 
 let toyIdCounter = 0;
 
@@ -226,6 +226,11 @@ export class ToyManager {
       neutralRateDegSec: CONFIG.STEERING_NEUTRAL_RATE_DEG_SEC,
       rearmMs: CONFIG.STEERING_REARM_MS,
     });
+    this.absoluteSteeringGate = new AbsoluteSteeringGate({
+      triggerAngleDeg: CONFIG.ORIENTATION_TRIGGER_ANGLE_DEG,
+      centerAngleDeg: CONFIG.ORIENTATION_CENTER_ANGLE_DEG,
+      rearmMs: CONFIG.ORIENTATION_REARM_MS,
+    });
     this._preparedClips = [];
     this._destroyTex = null;
     this._fillPreparedQueue();
@@ -251,15 +256,16 @@ export class ToyManager {
 
   debugVideoInfo() {
     const t = this.toys[0];
-    if (!t || !t.videoEl) return `video: (none)  steering=${this.steeringGate.state}`;
+    if (!t || !t.videoEl) return `video: (none)  steering=${this.absoluteSteeringGate.state}`;
     const v = t.videoEl;
-    return `video ${t.clip} ${t.side}/${this.difficulty}: rs=${v.readyState} ${v.paused ? 'paused' : 'playing'} t=${v.currentTime.toFixed(2)} steering=${this.steeringGate.state}`;
+    return `video ${t.clip} ${t.side}/${this.difficulty}: rs=${v.readyState} ${v.paused ? 'paused' : 'playing'} t=${v.currentTime.toFixed(2)} steering=${this.absoluteSteeringGate.state}`;
   }
 
-  reset() {
+  reset(initialOrientationAngle = null) {
     for (const toy of [...this.toys]) this._removeToy(toy);
     this.gestureGate.reset();
     this.steeringGate.reset();
+    this.absoluteSteeringGate.reset(initialOrientationAngle);
     this._fillPreparedQueue();
   }
 
@@ -303,6 +309,7 @@ export class ToyManager {
     if (wasWaitingForCenter && this.gestureGate.state === 'armed') this._retreatActiveToys();
     if (!side) return null;
     this.steeringGate.reset();
+    this.absoluteSteeringGate.reset();
     return this.spawnFromSide(side, true);
   }
 
@@ -315,6 +322,19 @@ export class ToyManager {
     if (wasWaitingForCenter && this.steeringGate.state === 'armed') this._retreatActiveToys();
     if (!side) return null;
     this.gestureGate.reset();
+    this.absoluteSteeringGate.reset();
+    return this.spawnFromSide(side, true);
+  }
+
+  handleOrientationMotion(sample) {
+    if (!Number.isFinite(sample.angle)) return null;
+    const timestamp = Number.isFinite(sample.timestamp) ? sample.timestamp : performance.now();
+    const wasWaitingForCenter = this.absoluteSteeringGate.state === 'waiting-center';
+    const side = this.absoluteSteeringGate.update(sample.angle, timestamp);
+    if (wasWaitingForCenter && this.absoluteSteeringGate.state === 'armed') this._retreatActiveToys();
+    if (!side) return null;
+    this.gestureGate.reset();
+    this.steeringGate.reset();
     return this.spawnFromSide(side, true);
   }
 

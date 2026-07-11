@@ -1,12 +1,12 @@
 // State machine + main loop tying together camera, motion, physics, toys, UI and FX.
-import { CONFIG } from './config.js?v=26';
-import { loadManifest } from './manifest.js?v=26';
-import { UI } from './ui.js?v=26';
-import { Renderer } from './renderer.js?v=26';
-import { startCamera } from './camera.js?v=26';
-import { Motion } from './motion.js?v=26';
-import { ToyManager } from './toys.js?v=26';
-import { Fx } from './fx.js?v=26';
+import { CONFIG } from './config.js?v=27';
+import { loadManifest } from './manifest.js?v=27';
+import { UI } from './ui.js?v=27';
+import { Renderer } from './renderer.js?v=27';
+import { startCamera } from './camera.js?v=27';
+import { Motion } from './motion.js?v=27';
+import { ToyManager } from './toys.js?v=27';
+import { Fx } from './fx.js?v=27';
 
 const stageEl = document.getElementById('stage');
 const cameraEl = document.getElementById('camera');
@@ -90,6 +90,11 @@ class Game {
     });
     this.toys.onScore = (toy) => this._onToyGrabbed(toy);
 
+    this.motion.on('orientation', (sample) => {
+      if (this.state !== STATE.PLAYING) return;
+      this.toys.handleOrientationMotion(sample);
+    });
+
     this.motion.on('steering', (sample) => {
       if (this.state !== STATE.PLAYING) return;
       this.toys.handleSteeringMotion(sample);
@@ -156,7 +161,7 @@ class Game {
     this.foundCount = 0;
     this.timeLeft = CONFIG.GAME_SECONDS;
     this.toys.setDifficulty(this.difficulty);
-    this.toys.reset();
+    this.toys.reset(this.motion.orientationAngle);
     this.ui.updatePoints(0);
     this.ui.updateTimer(this.timeLeft);
     this.state = STATE.PLAYING;

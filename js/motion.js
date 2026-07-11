@@ -1,7 +1,7 @@
 // DeviceMotion → screen-space gravity vector + shake detection.
 // Cross-platform: iOS 13+ requires an explicit permission prompt fired from
 // a user gesture; Android/desktop just start listening.
-import { CONFIG } from './config.js?v=26';
+import { CONFIG } from './config.js?v=27';
 
 function screenGravityFromAccel(ax, ay) {
   const angle = (screen.orientation && screen.orientation.angle) ?? window.orientation ?? 0;
@@ -31,10 +31,13 @@ export class Motion {
     this._gestureX = 0;
     this.tiltMagnitude = 0;
     this._lastShakeAt = 0;
-    this._listeners = { steering: [], lateral: [], shake: [], smallshake: [] };
+    this._listeners = { orientation: [], steering: [], lateral: [], shake: [], smallshake: [] };
     this._boundHandler = this._onDeviceMotion.bind(this);
+    this._boundOrientationHandler = this._onDeviceOrientation.bind(this);
     this._started = false;
     this._lastMotionAt = null;
+    this._lastOrientationAt = Number.NEGATIVE_INFINITY;
+    this.orientationAngle = null;
     // Diagnostics kept for console/testing; no on-screen debug is rendered.
     this.permissionState = 'not-requested'; // not-requested | granted | denied | not-needed
     this.eventCount = 0;
@@ -51,19 +54,28 @@ export class Motion {
 
   // Must be called from within a user-gesture handler (e.g. the OK button tap).
   async requestPermission() {
-    if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
-      try {
-        const result = await DeviceMotionEvent.requestPermission();
-        this.permissionState = result === 'granted' ? 'granted' : 'denied';
-        return result === 'granted';
-      } catch (err) {
-        this.permissionState = 'denied';
-        console.warn('[motion] permission request failed:', err);
-        return false;
+    const requests = [];
+    try {
+      if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+        requests.push(DeviceMotionEvent.requestPermission());
       }
+      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+        requests.push(DeviceOrientationEvent.requestPermission());
+      }
+      if (requests.length === 0) {
+        this.permissionState = 'not-needed';
+        return true;
+      }
+
+      const results = await Promise.allSettled(requests);
+      const granted = results.some((result) => result.status === 'fulfilled' && result.value === 'granted');
+      this.permissionState = granted ? 'granted' : 'denied';
+      return granted;
+    } catch (err) {
+      this.permissionState = 'denied';
+      console.warn('[motion] permission request failed:', err);
+      return false;
     }
-    this.permissionState = 'not-needed'; // Android/desktop: no explicit prompt required.
-    return true;
   }
 
   start() {
@@ -71,6 +83,7 @@ export class Motion {
     this._started = true;
     this._lastMotionAt = null;
     window.addEventListener('devicemotion', this._boundHandler);
+    window.addEventListener('deviceorientation', this._boundOrientationHandler);
   }
 
   stop() {
@@ -78,6 +91,18 @@ export class Motion {
     this._started = false;
     this._lastMotionAt = null;
     window.removeEventListener('devicemotion', this._boundHandler);
+    window.removeEventListener('deviceorientation', this._boundOrientationHandler);
+  }
+
+  _onDeviceOrientation(event) {
+    if (!Number.isFinite(event.alpha)) return;
+    const now = performance.now();
+    this.orientationAngle = event.alpha;
+    this._lastOrientationAt = now;
+    this._emit('orientation', {
+      angle: event.alpha,
+      timestamp: now,
+    });
   }
 
   _onDeviceMotion(e) {
@@ -105,13 +130,14 @@ export class Motion {
     this._lastMotionAt = now;
 
     const steeringRate = e.rotationRate?.alpha;
-    if (Number.isFinite(steeringRate)) {
+    const orientationIsFresh = now - this._lastOrientationAt <= CONFIG.ORIENTATION_STALE_MS;
+    if (!orientationIsFresh && Number.isFinite(steeringRate)) {
       this._emit('steering', {
         rate: steeringRate,
         dt,
         timestamp: now,
       });
-    } else {
+    } else if (!orientationIsFresh && !Number.isFinite(steeringRate)) {
       this._emit('lateral', {
         x: this._gestureX,
         gravityX: this.gravity.x,

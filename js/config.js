@@ -1,6 +1,6 @@
 // Central tunable constants for Lilypad Shake.
 export const CONFIG = {
-  BUILD: 'LILYPAD two-second tilt cycle build 26',
+  BUILD: 'LILYPAD absolute steering cycle build 27',
 
   STAGE_W: 1920,
   STAGE_H: 1200,
@@ -73,6 +73,11 @@ export const CONFIG = {
   STEERING_NEUTRAL_RATE_DEG_SEC: 1,
   STEERING_REARM_MS: 40,
   STEERING_MAX_DT_SEC: 0.05,
+
+  ORIENTATION_TRIGGER_ANGLE_DEG: 3.5,
+  ORIENTATION_CENTER_ANGLE_DEG: 1.5,
+  ORIENTATION_REARM_MS: 40,
+  ORIENTATION_STALE_MS: 500,
 
   // Tap
   TAP_INFLATE: 50, // px, forgiving hit-test padding
