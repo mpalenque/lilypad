@@ -1,8 +1,8 @@
 // Tilt-revealed toys using the split-alpha video clips.
-import { CONFIG } from './config.js?v=31';
-import { SideGestureGate } from './gesture.js?v=31';
-import { isVideoTouchLocked, videoFinished } from './media.js?v=31';
-import { stepToyPhysics } from './physics.js?v=31';
+import { CONFIG } from './config.js?v=32';
+import { SideGestureGate } from './gesture.js?v=32';
+import { isVideoTouchLocked, videoFinished } from './media.js?v=32';
+import { stepToyPhysics } from './physics.js?v=32';
 
 let toyIdCounter = 0;
 
@@ -295,16 +295,21 @@ export class ToyManager {
     if (this.neutralTiltX === null) {
       if (Math.abs(sample.x) > CONFIG.TILT_NEUTRAL_CAPTURE_MAX) return null;
       this.neutralTiltX = sample.x;
+      this.gestureGate.arm();
+      return null;
     }
     let relativeTilt = sample.x - this.neutralTiltX;
+    const wasWaitingForCenter = this.gestureGate.state === 'waiting-neutral';
     if (Math.abs(relativeTilt) <= CONFIG.TILT_EXIT) {
       this.neutralTiltX += relativeTilt * CONFIG.TILT_NEUTRAL_FOLLOW;
-      relativeTilt = sample.x - this.neutralTiltX;
+      if (wasWaitingForCenter) {
+        this.gestureGate.arm();
+        this._retreatActiveToys();
+      }
+      return null;
     }
     const signedTilt = CONFIG.TILT_SIGN_X * relativeTilt;
-    const wasWaitingForCenter = this.gestureGate.state === 'waiting-neutral';
     const side = this.gestureGate.update(signedTilt, timestamp);
-    if (wasWaitingForCenter && this.gestureGate.state === 'armed') this._retreatActiveToys();
     if (!side) return null;
     return this.spawnFromSide(side, true);
   }

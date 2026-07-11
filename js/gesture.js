@@ -15,6 +15,11 @@ export class SideGestureGate {
     this.rearmMs = rearmMs;
   }
 
+  arm() {
+    this.state = 'armed';
+    this.neutralSince = null;
+  }
+
   update(value, timestampMs) {
     const magnitude = Math.abs(value);
 
