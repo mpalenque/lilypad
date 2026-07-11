@@ -1,6 +1,6 @@
 // Central tunable constants for Lilypad Shake.
 export const CONFIG = {
-  BUILD: 'LILYPAD repeatable steering build 24',
+  BUILD: 'LILYPAD two-second tilt cycle build 25',
 
   STAGE_W: 1920,
   STAGE_H: 1200,
@@ -16,12 +16,13 @@ export const CONFIG = {
   TOY_Y: 600,
   TOY_START_X_OFFSET: 22,
   TOY_INITIAL_VISIBLE_PX: 48,
+  TOY_VISIBLE_SEC: 2,
 
   // Physics — a fresh tilt gesture reveals the toy from its side; after the
   // full video ends it hides back through that same side.
-  SLIDE_SPEED: 2200, // px/s at full tilt
-  RETREAT_SPEED: 2300,
-  SLIDE_EASE_APPROACH: 20.0,
+  SLIDE_SPEED: 4400, // px/s at full tilt
+  RETREAT_SPEED: 4600,
+  SLIDE_EASE_APPROACH: 40.0,
   MIN_REVEAL_SPEED: 0.34,
   TILT_FULL: 0.42,
   BOUNCE_MIN_SPEED: 750,

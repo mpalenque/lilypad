@@ -1,8 +1,8 @@
 // Tilt-revealed toys using the split-alpha video clips.
-import { CONFIG } from './config.js?v=24';
-import { SideGestureGate, SteeringGestureGate } from './gesture.js?v=24';
-import { isVideoTouchLocked, videoFinished } from './media.js?v=24';
-import { stepToyPhysics } from './physics.js?v=24';
+import { CONFIG } from './config.js?v=25';
+import { SideGestureGate, SteeringGestureGate } from './gesture.js?v=25';
+import { isVideoTouchLocked, videoFinished } from './media.js?v=25';
+import { stepToyPhysics } from './physics.js?v=25';
 
 let toyIdCounter = 0;
 
@@ -298,7 +298,9 @@ export class ToyManager {
     if (!Number.isFinite(sample.x)) return null;
     const timestamp = Number.isFinite(sample.timestamp) ? sample.timestamp : performance.now();
     const signedTilt = CONFIG.TILT_SIGN_X * sample.x;
+    const wasWaitingForCenter = this.gestureGate.state === 'waiting-neutral';
     const side = this.gestureGate.update(signedTilt, timestamp);
+    if (wasWaitingForCenter && this.gestureGate.state === 'armed') this._retreatActiveToys();
     if (!side) return null;
     this.steeringGate.reset();
     return this.spawnFromSide(side, true);
@@ -308,10 +310,16 @@ export class ToyManager {
     if (!Number.isFinite(sample.rate)) return null;
     const timestamp = Number.isFinite(sample.timestamp) ? sample.timestamp : performance.now();
     const signedRate = CONFIG.STEERING_SIGN * sample.rate;
+    const wasWaitingForCenter = this.steeringGate.state === 'waiting-center';
     const side = this.steeringGate.update(signedRate, timestamp);
+    if (wasWaitingForCenter && this.steeringGate.state === 'armed') this._retreatActiveToys();
     if (!side) return null;
     this.gestureGate.reset();
     return this.spawnFromSide(side, true);
+  }
+
+  _retreatActiveToys() {
+    for (const toy of this.toys) this._beginExpireToy(toy);
   }
 
   spawnFromSide(side, replaceActive = false) {
@@ -358,6 +366,7 @@ export class ToyManager {
       alpha: 1,
       angle: 0,
       playbackElapsed: 0,
+      appearanceElapsed: 0,
       playbackStarted: false,
       mediaWaitT: 0,
       mediaRetryT: 0,
@@ -420,6 +429,13 @@ export class ToyManager {
     if (!videoEl || toy.expiring || toy.grabbing) return;
 
     toy.playbackElapsed += dt;
+    if (toy.playbackStarted) {
+      toy.appearanceElapsed += dt;
+      if (toy.appearanceElapsed >= CONFIG.TOY_VISIBLE_SEC) {
+        this._beginExpireToy(toy);
+        return;
+      }
+    }
     if (isVideoTouchLocked(videoEl, CONFIG.TOUCH_DISABLE_BEFORE_END_SEC)) {
       toy.canTap = false;
     }
@@ -487,6 +503,7 @@ export class ToyManager {
     toy.clip = acquired.clip;
     toy.videoEl = acquired.videoEl;
     toy.playbackElapsed = 0;
+    toy.appearanceElapsed = 0;
     toy.playbackStarted = false;
     toy.mediaWaitT = 0;
     toy.mediaRetryT = 0;
