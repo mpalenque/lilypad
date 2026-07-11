@@ -1,12 +1,12 @@
 // State machine + main loop tying together camera, motion, physics, toys, UI and FX.
-import { CONFIG } from './config.js?v=21';
-import { loadManifest } from './manifest.js?v=21';
-import { UI } from './ui.js?v=21';
-import { Renderer } from './renderer.js?v=21';
-import { startCamera } from './camera.js?v=21';
-import { Motion } from './motion.js?v=21';
-import { ToyManager } from './toys.js?v=21';
-import { Fx } from './fx.js?v=21';
+import { CONFIG } from './config.js?v=22';
+import { loadManifest } from './manifest.js?v=22';
+import { UI } from './ui.js?v=22';
+import { Renderer } from './renderer.js?v=22';
+import { startCamera } from './camera.js?v=22';
+import { Motion } from './motion.js?v=22';
+import { ToyManager } from './toys.js?v=22';
+import { Fx } from './fx.js?v=22';
 
 const stageEl = document.getElementById('stage');
 const cameraEl = document.getElementById('camera');
@@ -89,6 +89,11 @@ class Game {
       if (this.renderer) this.renderer.destroyTextureFor(toy);
     });
     this.toys.onScore = (toy) => this._onToyGrabbed(toy);
+
+    this.motion.on('lateral', (sample) => {
+      if (this.state !== STATE.PLAYING) return;
+      this.toys.handleLateralMotion(sample);
+    });
 
     this.motion.on('shake', (intensity) => {
       if (this.state !== STATE.PLAYING) return;
@@ -198,7 +203,7 @@ class Game {
 
   _update(dt) {
     if (this.state === STATE.PLAYING) {
-      this.toys.update(dt, this.motion);
+      this.toys.update(dt);
       this.timeLeft -= dt;
       this.ui.updateTimer(this.timeLeft);
 

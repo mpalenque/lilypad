@@ -1,6 +1,6 @@
 // Central tunable constants for Lilypad Shake.
 export const CONFIG = {
-  BUILD: 'LILYPAD repeatable gestures build 21',
+  BUILD: 'LILYPAD repeatable gestures build 22',
 
   STAGE_W: 1920,
   STAGE_H: 1200,
@@ -15,6 +15,7 @@ export const CONFIG = {
   TOY_ASPECT: 640 / 720, // color-half aspect (portrait split-alpha videos)
   TOY_Y: 600,
   TOY_START_X_OFFSET: 22,
+  TOY_INITIAL_VISIBLE_PX: 48,
 
   // Physics — a fresh tilt gesture reveals the toy from its side; after the
   // full video ends it hides back through that same side.
@@ -28,8 +29,12 @@ export const CONFIG = {
   BOUNCE_DURATION: 0.28,
   BOUNCE_ANGLE_DEG: 1.0,
   EXPIRE_FADE_SEC: 0.18,
-  SPAWN_COOLDOWN_SEC: 0.35,
   TILT_REARM_SEC: 0.12,
+  TOUCH_DISABLE_BEFORE_END_SEC: 2,
+  VIDEO_START_TIMEOUT_SEC: 0.9,
+  VIDEO_RETRY_INTERVAL_SEC: 0.18,
+  VIDEO_MAX_RECOVERY_ATTEMPTS: 2,
+  VIDEO_MAX_REPLACEMENTS: 2,
 
   DIFFICULTY: {
     easy: {
@@ -37,7 +42,6 @@ export const CONFIG = {
       retreatSpeedMul: 0.75,
       easeMul: 0.9,
       expireFadeSec: 0.22,
-      spawnCooldownSec: 0.5,
       rearmSec: 0.14,
     },
     hard: {
@@ -45,7 +49,6 @@ export const CONFIG = {
       retreatSpeedMul: 1.85,
       easeMul: 1.35,
       expireFadeSec: 0.08,
-      spawnCooldownSec: 0.24,
       rearmSec: 0.08,
     },
   },
@@ -58,9 +61,9 @@ export const CONFIG = {
   // Tilt-based spawning. Flip TILT_SIGN_X if the real device reports directions
   // backwards.
   TILT_SIGN_X: -1,
-  TILT_ENTER: 0.075,      // |tilt| threshold to start counting sustain
+  TILT_ENTER: 0.075,
   TILT_EXIT: 0.025,
-  TILT_SUSTAIN_SEC: 0.04, // how long a new tilt gesture must be held to spawn
+  TILT_FAST_LOW_PASS: 0.72,
 
   // Tap
   TAP_INFLATE: 50, // px, forgiving hit-test padding

@@ -1,7 +1,7 @@
 // DeviceMotion → screen-space gravity vector + shake detection.
 // Cross-platform: iOS 13+ requires an explicit permission prompt fired from
 // a user gesture; Android/desktop just start listening.
-import { CONFIG } from './config.js?v=21';
+import { CONFIG } from './config.js?v=22';
 
 function screenGravityFromAccel(ax, ay) {
   const angle = (screen.orientation && screen.orientation.angle) ?? window.orientation ?? 0;
@@ -28,10 +28,12 @@ export class Motion {
   constructor() {
     this.gravity = { x: 0, y: 1 }; // low-passed, screen-space, roughly unit scale (~9.8 raw)
     this._gravityRaw = { x: 0, y: 9.8 };
+    this._gestureX = 0;
     this.tiltMagnitude = 0;
     this._lastShakeAt = 0;
-    this._listeners = { shake: [], smallshake: [] };
+    this._listeners = { lateral: [], shake: [], smallshake: [] };
     this._boundHandler = this._onDeviceMotion.bind(this);
+    this._started = false;
     // Diagnostics kept for console/testing; no on-screen debug is rendered.
     this.permissionState = 'not-requested'; // not-requested | granted | denied | not-needed
     this.eventCount = 0;
@@ -64,10 +66,14 @@ export class Motion {
   }
 
   start() {
+    if (this._started) return;
+    this._started = true;
     window.addEventListener('devicemotion', this._boundHandler);
   }
 
   stop() {
+    if (!this._started) return;
+    this._started = false;
     window.removeEventListener('devicemotion', this._boundHandler);
   }
 
@@ -85,7 +91,14 @@ export class Motion {
     const LOW_PASS = 0.32;
     this.gravity.x += (gx - this.gravity.x) * LOW_PASS;
     this.gravity.y += (gy - this.gravity.y) * LOW_PASS;
+    this._gestureX += (gx - this._gestureX) * CONFIG.TILT_FAST_LOW_PASS;
     this.tiltMagnitude = Math.hypot(this.gravity.x, this.gravity.y);
+    const now = performance.now();
+    this._emit('lateral', {
+      x: this._gestureX,
+      gravityX: this.gravity.x,
+      timestamp: now,
+    });
 
     // Shake detection: prefer gravity-excluded acceleration; fall back to a
     // high-pass of accelerationIncludingGravity (common on Android where
@@ -104,7 +117,6 @@ export class Motion {
     }
 
     const mag = Math.hypot(lx, ly, lz || 0);
-    const now = performance.now();
     if (mag > CONFIG.SHAKE_THRESHOLD && now - this._lastShakeAt > CONFIG.SHAKE_DEBOUNCE_MS) {
       this._lastShakeAt = now;
       const intensity = Math.min(mag / CONFIG.SHAKE_THRESHOLD, 3);

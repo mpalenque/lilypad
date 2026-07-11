@@ -1,6 +1,8 @@
 // Tilt-revealed toys using the split-alpha video clips.
-import { CONFIG } from './config.js?v=21';
-import { stepToyPhysics } from './physics.js?v=21';
+import { CONFIG } from './config.js?v=22';
+import { SideGestureGate } from './gesture.js?v=22';
+import { isVideoTouchLocked, videoFinished } from './media.js?v=22';
+import { stepToyPhysics } from './physics.js?v=22';
 
 let toyIdCounter = 0;
 
@@ -42,12 +44,6 @@ function visibleRectFor(toy) {
   };
 }
 
-function videoFinished(videoEl) {
-  if (!videoEl) return true;
-  if (videoEl.ended) return true;
-  return Number.isFinite(videoEl.duration) && videoEl.duration > 0 && videoEl.currentTime >= videoEl.duration - 0.04;
-}
-
 class ClipBag {
   constructor(clips) {
     this.all = clips;
@@ -78,10 +74,11 @@ class ClipBag {
 }
 
 class VideoPool {
-  constructor(basePath, clips) {
+  constructor(basePath, capacity = 2) {
     this.basePath = basePath;
-    this.byClip = new Map();
-    for (const clip of clips) {
+    this.capacity = capacity;
+    this.entries = [];
+    for (let index = 0; index < capacity; index++) {
       const el = document.createElement('video');
       el.loop = false;
       el.muted = true;
@@ -93,68 +90,119 @@ class VideoPool {
       el.preload = 'auto';
       el.style.cssText =
         'position:fixed;bottom:0;right:0;width:2px;height:2px;opacity:0.02;pointer-events:none;z-index:2147483646;';
-      el.src = `${basePath}/${clip}.mp4`;
-      el.load();
       document.body.appendChild(el);
-      this.byClip.set(clip, { el, busy: false });
+      this.entries.push({ el, clip: null, busy: false, generation: 0, lastError: null });
     }
+  }
+
+  hasPreparationSlot(protectedClips) {
+    return this.entries.some((entry) => !entry.busy && !protectedClips.has(entry.clip));
+  }
+
+  prepare(clip, protectedClips = new Set()) {
+    let entry = this.entries.find((candidate) => !candidate.busy && candidate.clip === clip);
+    if (entry) {
+      if (entry.el.error) this._setClip(entry, clip, true);
+      return true;
+    }
+
+    entry = this.entries.find((candidate) => !candidate.busy && !protectedClips.has(candidate.clip));
+    if (!entry) return false;
+    this._setClip(entry, clip, false);
+    return true;
+  }
+
+  _setClip(entry, clip, forceReload) {
+    if (!forceReload && entry.clip === clip && !entry.el.error) return;
+    entry.generation++;
+    entry.el.pause();
+    entry.clip = clip;
+    entry.lastError = null;
+    entry.el.src = `${this.basePath}/${clip}.mp4`;
+    entry.el.load();
   }
 
   async unlockAll() {
     const tasks = [];
-    for (const { el } of this.byClip.values()) {
+    for (const entry of this.entries) {
+      if (!entry.clip) continue;
+      const { el } = entry;
       tasks.push(
         el.play()
           .then(() => {
+            if (entry.busy) return;
             el.pause();
-            el.currentTime = 0;
+            try {
+              el.currentTime = 0;
+            } catch (error) {
+              entry.lastError = error;
+            }
           })
-          .catch(() => {})
+          .catch((error) => {
+            entry.lastError = error;
+          })
       );
     }
     await Promise.all(tasks);
   }
 
   acquire(clip) {
-    let entry = this.byClip.get(clip);
-    if (!entry || entry.busy) {
-      entry = [...this.byClip.values()].find((candidate) => !candidate.busy);
-    }
+    const entry = this.entries.find((candidate) => !candidate.busy && candidate.clip === clip);
     if (!entry) return null;
     entry.busy = true;
-    this._playFromStart(entry.el);
-    return entry.el;
+    return {
+      videoEl: entry.el,
+      playPromise: this._playFromStart(entry, false),
+    };
   }
 
-  _playFromStart(el) {
+  _playFromStart(entry, forceReload) {
+    const { el } = entry;
+    const generation = ++entry.generation;
     el.loop = false;
+    el.pause();
+    if (forceReload || el.error) {
+      el.src = `${this.basePath}/${entry.clip}.mp4`;
+      el.load();
+    }
     try {
       el.currentTime = 0;
-    } catch (e) {
-      /* ignore until metadata is ready */
+    } catch (error) {
+      entry.lastError = error;
     }
-    const attempt = () => el.play().catch(() => {});
-    attempt();
-    if (el.readyState < 2) {
-      const onReady = () => {
-        el.removeEventListener('canplay', onReady);
-        attempt();
-      };
-      el.addEventListener('canplay', onReady);
-    }
+
+    return el.play().catch((error) => {
+      if (entry.generation === generation) entry.lastError = error;
+      throw error;
+    });
+  }
+
+  ensurePlaying(videoEl) {
+    const entry = this.entries.find((candidate) => candidate.el === videoEl && candidate.busy);
+    if (!entry || !videoEl.paused || videoEl.ended) return Promise.resolve();
+    return videoEl.play().catch((error) => {
+      entry.lastError = error;
+      throw error;
+    });
+  }
+
+  restart(videoEl) {
+    const entry = this.entries.find((candidate) => candidate.el === videoEl && candidate.busy);
+    if (!entry) return Promise.reject(new Error('Video is no longer active'));
+    entry.lastError = null;
+    return this._playFromStart(entry, true);
   }
 
   release(videoEl) {
-    for (const entry of this.byClip.values()) {
-      if (entry.el === videoEl) {
-        entry.busy = false;
-        entry.el.pause();
-        try {
-          entry.el.currentTime = 0;
-        } catch (e) {
-          /* ignore */
-        }
-      }
+    const entry = this.entries.find((candidate) => candidate.el === videoEl);
+    if (!entry) return;
+    entry.generation++;
+    entry.busy = false;
+    entry.el.pause();
+    try {
+      entry.el.currentTime = 0;
+    } catch (error) {
+      entry.lastError = error;
     }
   }
 }
@@ -163,17 +211,18 @@ export class ToyManager {
   constructor(stageEl, videoBasePath) {
     this.stageEl = stageEl;
     this.clipBag = new ClipBag(CONFIG.CLIPS);
-    this.pool = new VideoPool(videoBasePath, CONFIG.CLIPS);
+    this.pool = new VideoPool(videoBasePath, 2);
     this.toys = [];
     this.onScore = null;
     this.difficulty = 'easy';
-    this._tiltSustain = 0;
-    this._tiltSide = null;
-    this._gestureReady = false;
-    this._neutralTime = 0;
-    this._spawnCooldown = 0;
-    this._lastSpawnSide = null;
+    this.gestureGate = new SideGestureGate({
+      enterThreshold: CONFIG.TILT_ENTER,
+      exitThreshold: CONFIG.TILT_EXIT,
+      rearmMs: CONFIG.DIFFICULTY.easy.rearmSec * 1000,
+    });
+    this._preparedClips = [];
     this._destroyTex = null;
+    this._fillPreparedQueue();
   }
 
   setTextureDestroyer(fn) {
@@ -186,6 +235,8 @@ export class ToyManager {
 
   setDifficulty(mode) {
     this.difficulty = mode === 'hard' ? 'hard' : 'easy';
+    const rearmSec = this._difficultyConfig().rearmSec ?? CONFIG.TILT_REARM_SEC;
+    this.gestureGate.setRearmMs(rearmSec * 1000);
   }
 
   _difficultyConfig() {
@@ -194,36 +245,71 @@ export class ToyManager {
 
   debugVideoInfo() {
     const t = this.toys[0];
-    if (!t || !t.videoEl) return 'video: (none)  next side: tilt';
+    if (!t || !t.videoEl) return `video: (none)  gesture=${this.gestureGate.state}`;
     const v = t.videoEl;
-    return `video ${t.clip} ${t.side}/${this.difficulty}: rs=${v.readyState} ${v.paused ? 'paused' : 'playing'} t=${v.currentTime.toFixed(2)}`;
+    return `video ${t.clip} ${t.side}/${this.difficulty}: rs=${v.readyState} ${v.paused ? 'paused' : 'playing'} t=${v.currentTime.toFixed(2)} gesture=${this.gestureGate.state}`;
   }
 
   reset() {
     for (const toy of [...this.toys]) this._removeToy(toy);
-    this._tiltSustain = 0;
-    this._tiltSide = null;
-    this._gestureReady = false;
-    this._neutralTime = 0;
-    this._spawnCooldown = 0;
-    this._lastSpawnSide = null;
+    this.gestureGate.reset();
+    this._fillPreparedQueue();
   }
 
   getActiveClips() {
     return new Set(this.toys.map((t) => t.clip));
   }
 
+  _fillPreparedQueue() {
+    while (this._preparedClips.length < this.pool.capacity) {
+      const protectedClips = new Set(this._preparedClips);
+      if (!this.pool.hasPreparationSlot(protectedClips)) break;
+      const unavailable = new Set([...this.getActiveClips(), ...this._preparedClips]);
+      const clip = this.clipBag.next(unavailable);
+      if (!this.pool.prepare(clip, protectedClips)) break;
+      this._preparedClips.push(clip);
+    }
+  }
+
+  _acquirePreparedVideo() {
+    this._fillPreparedQueue();
+    while (this._preparedClips.length > 0) {
+      const clip = this._preparedClips.shift();
+      const acquired = this.pool.acquire(clip);
+      if (acquired) return { clip, ...acquired };
+    }
+    return null;
+  }
+
+  _watchPlayPromise(toy, playPromise) {
+    playPromise.catch((error) => {
+      if (this.toys.includes(toy) && toy.videoEl) toy.mediaError = error;
+    });
+  }
+
+  handleLateralMotion(sample) {
+    if (!Number.isFinite(sample.x)) return null;
+    const timestamp = Number.isFinite(sample.timestamp) ? sample.timestamp : performance.now();
+    const signedTilt = CONFIG.TILT_SIGN_X * sample.x;
+    const side = this.gestureGate.update(signedTilt, timestamp);
+    if (!side) return null;
+    return this.spawnFromSide(side);
+  }
+
   spawnFromSide(side) {
     if (this.toys.length >= CONFIG.MAX_CONCURRENT_TOYS) return null;
 
-    const clip = this.clipBag.next(this.getActiveClips());
-    const videoEl = this.pool.acquire(clip);
-    if (!videoEl) return null;
+    const acquired = this._acquirePreparedVideo();
+    if (!acquired) return null;
+    const { clip, videoEl, playPromise } = acquired;
 
     const h = CONFIG.TOY_HEIGHT_PX;
     const w = h * CONFIG.TOY_ASPECT;
     const fromRight = side === 'right';
     const hiddenX = fromRight ? CONFIG.STAGE_W + w / 2 + CONFIG.TOY_START_X_OFFSET : -w / 2 - CONFIG.TOY_START_X_OFFSET;
+    const spawnX = fromRight
+      ? CONFIG.STAGE_W + w / 2 - CONFIG.TOY_INITIAL_VISIBLE_PX
+      : -w / 2 + CONFIG.TOY_INITIAL_VISIBLE_PX;
     const settings = this._difficultyConfig();
     const y = CONFIG.TOY_Y + rand(-14, 14);
 
@@ -232,9 +318,9 @@ export class ToyManager {
       clip,
       videoEl,
       side,
-      x: hiddenX,
+      x: spawnX,
       y,
-      renderX: hiddenX,
+      renderX: spawnX,
       renderY: y,
       w,
       h,
@@ -243,13 +329,19 @@ export class ToyManager {
       restY: y,
       hiddenX,
       resting: false,
-      hidden: true,
-      hasEntered: false,
+      hidden: false,
+      hasEntered: true,
       mirror: fromRight,
       scale: 1,
       alpha: 1,
       angle: 0,
       playbackElapsed: 0,
+      playbackStarted: false,
+      mediaWaitT: 0,
+      mediaRetryT: 0,
+      mediaRecoveryAttempts: 0,
+      mediaReplacementAttempts: 0,
+      mediaError: null,
       expiring: false,
       expireT: 0,
       canTap: true,
@@ -262,7 +354,8 @@ export class ToyManager {
       bornAt: performance.now(),
     };
     this.toys.push(toy);
-    this._lastSpawnSide = side;
+    this._watchPlayPromise(toy, playPromise);
+    this._fillPreparedQueue();
     return toy;
   }
 
@@ -274,59 +367,10 @@ export class ToyManager {
     this.addWobble(intensity);
   }
 
-  update(dt, motion) {
-    this._spawnCooldown = Math.max(0, this._spawnCooldown - dt);
-    const signedTilt = CONFIG.TILT_SIGN_X * motion.gravity.x;
-    const leftAmount = signedTilt;
-    const rightAmount = -signedTilt;
-    const activeSide = leftAmount > CONFIG.TILT_ENTER ? 'right' : rightAmount > CONFIG.TILT_ENTER ? 'left' : null;
-
-    const noActiveToy = this.toys.length === 0;
-
-    if (!activeSide) {
-      if (noActiveToy) {
-        this._neutralTime += dt;
-        const rearmSec = this._difficultyConfig().rearmSec ?? CONFIG.TILT_REARM_SEC;
-        if (this._neutralTime >= rearmSec) this._gestureReady = true;
-      }
-      this._tiltSustain = 0;
-      this._tiltSide = null;
-    } else if (this._tiltSide !== activeSide) {
-      this._tiltSide = activeSide;
-      this._tiltSustain = 0;
-      this._neutralTime = 0;
-      if (noActiveToy && activeSide !== this._lastSpawnSide) this._gestureReady = true;
-    } else {
-      this._neutralTime = 0;
-    }
-
-    if (noActiveToy && activeSide && activeSide !== this._lastSpawnSide) {
-      this._gestureReady = true;
-    }
-
-    const canSpawnSide = activeSide && this._gestureReady && this._spawnCooldown <= 0;
-    if (canSpawnSide && this.toys.length < CONFIG.MAX_CONCURRENT_TOYS) {
-      this._tiltSustain += dt;
-      if (this._tiltSustain >= CONFIG.TILT_SUSTAIN_SEC) {
-        this.spawnFromSide(activeSide);
-        this._gestureReady = false;
-        this._neutralTime = 0;
-        this._tiltSustain = 0;
-      }
-    }
-
+  update(dt) {
     for (const toy of [...this.toys]) {
-      const v = toy.videoEl;
-      if (v) {
-        if (!toy.expiring && !toy.grabbing) {
-          toy.playbackElapsed += dt;
-        }
-        if (!toy.expiring && !toy.grabbing && videoFinished(v)) {
-          this._beginExpireToy(toy);
-        } else if (!toy.expiring && v.paused && v.readyState >= 2 && !toy.grabbing) {
-          v.play().catch(() => {});
-        }
-      }
+      this._updateToyMedia(toy, dt);
+      if (!this.toys.includes(toy)) continue;
 
       if (toy.grabbing) {
         toy.grabT += dt / 0.15;
@@ -349,12 +393,100 @@ export class ToyManager {
     }
   }
 
+  _updateToyMedia(toy, dt) {
+    const videoEl = toy.videoEl;
+    if (!videoEl || toy.expiring || toy.grabbing) return;
+
+    toy.playbackElapsed += dt;
+    if (isVideoTouchLocked(videoEl, CONFIG.TOUCH_DISABLE_BEFORE_END_SEC)) {
+      toy.canTap = false;
+    }
+
+    if (toy.playbackStarted && videoFinished(videoEl)) {
+      this._beginExpireToy(toy);
+      return;
+    }
+
+    const hasFrame = videoEl.readyState >= 2 && videoEl.videoWidth > 0 && videoEl.videoHeight > 0;
+    if (hasFrame && !videoEl.paused && !videoEl.ended) {
+      toy.playbackStarted = true;
+      toy.mediaWaitT = 0;
+      toy.mediaRecoveryAttempts = 0;
+      toy.mediaError = null;
+      return;
+    }
+
+    toy.mediaWaitT += dt;
+    toy.mediaRetryT -= dt;
+    if (toy.mediaRetryT <= 0 && !videoEl.ended) {
+      toy.mediaRetryT = CONFIG.VIDEO_RETRY_INTERVAL_SEC;
+      this.pool.ensurePlaying(videoEl).catch((error) => {
+        if (this.toys.includes(toy) && toy.videoEl === videoEl) toy.mediaError = error;
+      });
+    }
+
+    if (videoEl.error || toy.mediaWaitT >= CONFIG.VIDEO_START_TIMEOUT_SEC) {
+      this._recoverToyMedia(toy);
+    }
+  }
+
+  _recoverToyMedia(toy) {
+    if (!this.toys.includes(toy) || !toy.videoEl) return;
+
+    if (toy.mediaRecoveryAttempts < CONFIG.VIDEO_MAX_RECOVERY_ATTEMPTS) {
+      toy.mediaRecoveryAttempts++;
+      toy.mediaWaitT = 0;
+      toy.mediaRetryT = CONFIG.VIDEO_RETRY_INTERVAL_SEC;
+      toy.mediaError = null;
+      const videoEl = toy.videoEl;
+      this.pool.restart(videoEl).catch((error) => {
+        if (this.toys.includes(toy) && toy.videoEl === videoEl) toy.mediaError = error;
+      });
+      return;
+    }
+
+    if (toy.mediaReplacementAttempts < CONFIG.VIDEO_MAX_REPLACEMENTS) {
+      this._replaceToyVideo(toy);
+      return;
+    }
+
+    this._removeToy(toy);
+  }
+
+  _replaceToyVideo(toy) {
+    const previousVideo = toy.videoEl;
+    this.pool.release(previousVideo);
+    const acquired = this._acquirePreparedVideo();
+    if (!acquired) {
+      this._removeToy(toy);
+      return;
+    }
+
+    toy.clip = acquired.clip;
+    toy.videoEl = acquired.videoEl;
+    toy.playbackElapsed = 0;
+    toy.playbackStarted = false;
+    toy.mediaWaitT = 0;
+    toy.mediaRetryT = 0;
+    toy.mediaRecoveryAttempts = 0;
+    toy.mediaReplacementAttempts++;
+    toy.mediaError = null;
+    toy.canTap = true;
+    if (this._destroyTex) this._destroyTex(toy);
+    this._watchPlayPromise(toy, acquired.playPromise);
+    this._fillPreparedQueue();
+  }
+
   // stageX/stageY are in stage px (0..1920, 0..1200).
   tapAt(stageX, stageY) {
     let best = null;
     let bestDist = Infinity;
     for (const toy of this.toys) {
-      if (toy.grabbing || toy.expiring || !toy.canTap) continue;
+      if (toy.grabbing || toy.expiring || !toy.canTap || !toy.playbackStarted) continue;
+      if (isVideoTouchLocked(toy.videoEl, CONFIG.TOUCH_DISABLE_BEFORE_END_SEC)) {
+        toy.canTap = false;
+        continue;
+      }
       const visible = visibleRectFor(toy);
       if (!visible || visible.fraction < CONFIG.MIN_TOUCH_VISIBLE_FRACTION) continue;
 
@@ -374,8 +506,6 @@ export class ToyManager {
       best.grabbing = true;
       best.canTap = false;
       best.grabT = 0;
-      this._spawnCooldown = this._difficultyConfig().spawnCooldownSec ?? CONFIG.SPAWN_COOLDOWN_SEC;
-      this._tiltSustain = 0;
       if (this.onScore) this.onScore(best);
     }
     return best;
@@ -386,15 +516,16 @@ export class ToyManager {
     toy.expiring = true;
     toy.canTap = false;
     toy.expireT = 0;
-    this._spawnCooldown = this._difficultyConfig().spawnCooldownSec ?? CONFIG.SPAWN_COOLDOWN_SEC;
     if (toy.videoEl) {
       toy.videoEl.pause();
     }
   }
 
   _removeToy(toy) {
+    if (!this.toys.includes(toy)) return;
     this.toys = this.toys.filter((t) => t !== toy);
     this.pool.release(toy.videoEl);
     if (this._destroyTex) this._destroyTex(toy);
+    this._fillPreparedQueue();
   }
 }
