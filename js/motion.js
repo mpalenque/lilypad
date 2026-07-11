@@ -1,7 +1,7 @@
 // DeviceMotion → screen-space gravity vector + shake detection.
 // Cross-platform: iOS 13+ requires an explicit permission prompt fired from
 // a user gesture; Android/desktop just start listening.
-import { CONFIG } from './config.js?v=22';
+import { CONFIG } from './config.js?v=23';
 
 function screenGravityFromAccel(ax, ay) {
   const angle = (screen.orientation && screen.orientation.angle) ?? window.orientation ?? 0;
@@ -31,9 +31,10 @@ export class Motion {
     this._gestureX = 0;
     this.tiltMagnitude = 0;
     this._lastShakeAt = 0;
-    this._listeners = { lateral: [], shake: [], smallshake: [] };
+    this._listeners = { steering: [], lateral: [], shake: [], smallshake: [] };
     this._boundHandler = this._onDeviceMotion.bind(this);
     this._started = false;
+    this._lastMotionAt = null;
     // Diagnostics kept for console/testing; no on-screen debug is rendered.
     this.permissionState = 'not-requested'; // not-requested | granted | denied | not-needed
     this.eventCount = 0;
@@ -68,12 +69,14 @@ export class Motion {
   start() {
     if (this._started) return;
     this._started = true;
+    this._lastMotionAt = null;
     window.addEventListener('devicemotion', this._boundHandler);
   }
 
   stop() {
     if (!this._started) return;
     this._started = false;
+    this._lastMotionAt = null;
     window.removeEventListener('devicemotion', this._boundHandler);
   }
 
@@ -94,11 +97,27 @@ export class Motion {
     this._gestureX += (gx - this._gestureX) * CONFIG.TILT_FAST_LOW_PASS;
     this.tiltMagnitude = Math.hypot(this.gravity.x, this.gravity.y);
     const now = performance.now();
-    this._emit('lateral', {
-      x: this._gestureX,
-      gravityX: this.gravity.x,
-      timestamp: now,
-    });
+    const elapsedSec = this._lastMotionAt === null ? Number.NaN : (now - this._lastMotionAt) / 1000;
+    const reportedInterval = Number(e.interval);
+    const reportedSec = reportedInterval > 1 ? reportedInterval / 1000 : reportedInterval;
+    const rawDt = Number.isFinite(elapsedSec) && elapsedSec > 0 ? elapsedSec : reportedSec;
+    const dt = Math.max(1 / 240, Math.min(CONFIG.STEERING_MAX_DT_SEC, Number.isFinite(rawDt) && rawDt > 0 ? rawDt : 1 / 60));
+    this._lastMotionAt = now;
+
+    const steeringRate = e.rotationRate?.alpha;
+    if (Number.isFinite(steeringRate)) {
+      this._emit('steering', {
+        rate: steeringRate,
+        dt,
+        timestamp: now,
+      });
+    } else {
+      this._emit('lateral', {
+        x: this._gestureX,
+        gravityX: this.gravity.x,
+        timestamp: now,
+      });
+    }
 
     // Shake detection: prefer gravity-excluded acceleration; fall back to a
     // high-pass of accelerationIncludingGravity (common on Android where

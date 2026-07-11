@@ -1,6 +1,6 @@
 // Central tunable constants for Lilypad Shake.
 export const CONFIG = {
-  BUILD: 'LILYPAD repeatable gestures build 22',
+  BUILD: 'LILYPAD steering gestures build 23',
 
   STAGE_W: 1920,
   STAGE_H: 1200,
@@ -65,6 +65,13 @@ export const CONFIG = {
   TILT_EXIT: 0.025,
   TILT_FAST_LOW_PASS: 0.72,
 
+  STEERING_SIGN: 1,
+  STEERING_TRIGGER_ANGLE_DEG: 2.5,
+  STEERING_CENTER_ANGLE_DEG: 1.25,
+  STEERING_RATE_DEADZONE_DEG_SEC: 1.5,
+  STEERING_CENTER_RATE_DEG_SEC: 4,
+  STEERING_MAX_DT_SEC: 0.05,
+
   // Tap
   TAP_INFLATE: 50, // px, forgiving hit-test padding
   MIN_TOUCH_VISIBLE_FRACTION: 0.018,
@@ -91,7 +98,7 @@ export const CONFIG = {
   // Instruction text (Spanish, minimal accents per house style except where clarity needs it)
   INSTRUCTION_LINES: [
     '¡LOS JUGUETES SE ESCONDIERON!',
-    'INCLINÁ EL CELULAR A LOS COSTADOS',
+    'GIRÁ LA TABLET COMO UN VOLANTE',
     'Y TOCALOS PARA AGARRARLOS',
   ],
 };
