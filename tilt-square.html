@@ -82,23 +82,22 @@
       top: 50%;
       width: min(28vw, 250px);
       aspect-ratio: 1;
-      border-radius: 18px;
+      border-radius: 0;
       opacity: 0;
       background: #1677ff;
-      box-shadow: 0 18px 44px rgba(22, 119, 255, 0.46);
       pointer-events: none;
-      transition: transform 180ms cubic-bezier(0.4, 0, 1, 1), opacity 120ms ease-in;
+      transition: transform 220ms cubic-bezier(0.4, 0, 1, 1), opacity 120ms ease-in;
       will-change: transform, opacity;
     }
 
     #square.left {
       left: 0;
-      transform: translate3d(-140%, -50%, 0);
+      transform: translate3d(-110%, -50%, 0);
     }
 
     #square.right {
       right: 0;
-      transform: translate3d(140%, -50%, 0);
+      transform: translate3d(110%, -50%, 0);
     }
 
     #square.visible {
@@ -107,42 +106,34 @@
     }
 
     #square.visible.left {
-      transform: translate3d(32px, -50%, 0);
-      animation: square-enter-left 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+      transform: translate3d(0, -50%, 0);
+      animation: square-slide-left 360ms cubic-bezier(0.16, 1, 0.3, 1) both;
     }
 
     #square.visible.right {
-      transform: translate3d(-32px, -50%, 0);
-      animation: square-enter-right 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+      transform: translate3d(0, -50%, 0);
+      animation: square-slide-right 360ms cubic-bezier(0.16, 1, 0.3, 1) both;
     }
 
-    @keyframes square-enter-left {
+    @keyframes square-slide-left {
       from {
-        opacity: 0;
-        transform: translate3d(-140%, -50%, 0);
-      }
-      72% {
         opacity: 1;
-        transform: translate3d(42px, -50%, 0);
+        transform: translate3d(-110%, -50%, 0);
       }
       to {
         opacity: 1;
-        transform: translate3d(32px, -50%, 0);
+        transform: translate3d(0, -50%, 0);
       }
     }
 
-    @keyframes square-enter-right {
+    @keyframes square-slide-right {
       from {
-        opacity: 0;
-        transform: translate3d(140%, -50%, 0);
-      }
-      72% {
         opacity: 1;
-        transform: translate3d(-42px, -50%, 0);
+        transform: translate3d(110%, -50%, 0);
       }
       to {
         opacity: 1;
-        transform: translate3d(-32px, -50%, 0);
+        transform: translate3d(0, -50%, 0);
       }
     }
   </style>
@@ -160,12 +151,13 @@
     (() => {
       const ENTER_THRESHOLD = 0.018;
       const EXIT_THRESHOLD = 0.011;
+      const TAP_REARM_THRESHOLD = 0.015;
       const SQUARE_VISIBLE_MS = 2000;
       const REFERENCE_STABLE_DELTA = 0.01;
       const REFERENCE_SETTLE_MS = 180;
       const FIRST_TILT_HOLD_MS = 35;
       const OPPOSITE_TILT_HOLD_MS = 140;
-      const NEUTRAL_HOLD_MS = 80;
+      const NEUTRAL_HOLD_MS = 45;
 
       const activateButton = document.getElementById('activate');
       const squareElement = document.getElementById('square');
@@ -185,6 +177,7 @@
       let squareVisible = false;
       let squareShowSequence = 0;
       let squareHideTimer = null;
+      let tapRearmRequested = false;
       let lastTelemetryAt = 0;
 
       function report(eventName, payload, force) {
@@ -215,6 +208,7 @@
         pendingDirection = 0;
         pendingDirectionSince = null;
         neutralSince = null;
+        tapRearmRequested = false;
         hideSquare();
         setStatus('Incliná apenas hacia un lado');
         report('square-reference-pending', {}, true);
@@ -243,6 +237,7 @@
 
       function showSquare(side) {
         clearSquareHideTimer();
+        tapRearmRequested = false;
         const showSequence = ++squareShowSequence;
         squareElement.classList.remove('visible', 'left', 'right');
         squareElement.classList.add(side);
@@ -266,6 +261,14 @@
         squareElement.classList.remove('visible');
         squareVisible = false;
         report('square-hide', {}, true);
+      }
+
+      function hideSquareFromTap() {
+        tapRearmRequested = true;
+        neutralSince = null;
+        clearPendingDirection();
+        hideSquare();
+        report('square-tap', { activeDirection }, true);
       }
 
       function clearPendingDirection() {
@@ -318,11 +321,13 @@
 
         const delta = tilt - centerTilt;
         const magnitude = Math.abs(delta);
-        if (magnitude <= EXIT_THRESHOLD) {
+        const neutralThreshold = tapRearmRequested ? TAP_REARM_THRESHOLD : EXIT_THRESHOLD;
+        if (magnitude <= neutralThreshold) {
           if (neutralSince === null) neutralSince = timestamp;
           if (timestamp - neutralSince >= NEUTRAL_HOLD_MS) {
             const shouldHideSquare = activeDirection !== 0 || squareVisible;
             activeDirection = 0;
+            tapRearmRequested = false;
             clearPendingDirection();
             if (shouldHideSquare) hideSquare();
           }
@@ -380,7 +385,7 @@
       }
 
       activateButton.addEventListener('click', activate);
-      squareElement.addEventListener('click', hideSquare);
+      squareElement.addEventListener('click', hideSquareFromTap);
       window.addEventListener('orientationchange', beginAutomaticReference);
       report('square-boot', {}, true);
     })();
