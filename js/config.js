@@ -1,6 +1,6 @@
 // Central tunable constants for Lilypad Shake.
 export const CONFIG = {
-  BUILD: 'LILYPAD instant steering cycle build 28',
+  BUILD: 'LILYPAD gravity tilt-only build 29',
 
   STAGE_W: 1920,
   STAGE_H: 1200,
@@ -15,7 +15,7 @@ export const CONFIG = {
   TOY_ASPECT: 640 / 720, // color-half aspect (portrait split-alpha videos)
   TOY_Y: 600,
   TOY_START_X_OFFSET: 22,
-  TOY_INITIAL_VISIBLE_PX: 320,
+  TOY_INITIAL_VISIBLE_PX: 480,
   TOY_LIFETIME_SEC: 2,
   TOY_RETREAT_LEAD_SEC: 0.25,
 
@@ -40,11 +40,11 @@ export const CONFIG = {
 
   DIFFICULTY: {
     easy: {
-      slideSpeedMul: 0.72,
-      retreatSpeedMul: 0.75,
-      easeMul: 0.9,
+      slideSpeedMul: 1.0,
+      retreatSpeedMul: 1.0,
+      easeMul: 1.0,
       expireFadeSec: 0.22,
-      rearmSec: 0.14,
+      rearmSec: 0.08,
     },
     hard: {
       slideSpeedMul: 1.45,
@@ -60,25 +60,12 @@ export const CONFIG = {
   SHAKE_DEBOUNCE_MS: 350,
   SMALL_SHAKE_THRESHOLD: 7,
 
-  // Tilt-based spawning. Flip TILT_SIGN_X if the real device reports directions
-  // backwards.
+  // Screen-space gravity is the only trigger. A left edge that is lower has a
+  // negative X value and must reveal the video on the right (and vice versa).
   TILT_SIGN_X: -1,
-  TILT_ENTER: 0.075,
-  TILT_EXIT: 0.025,
-  TILT_FAST_LOW_PASS: 0.72,
-
-  STEERING_SIGN: 1,
-  STEERING_TRIGGER_RATE_DEG_SEC: 2,
-  STEERING_RETURN_RATE_DEG_SEC: 1.5,
-  STEERING_NEUTRAL_RATE_DEG_SEC: 1,
-  STEERING_REARM_MS: 40,
-  STEERING_MAX_DT_SEC: 0.05,
-  STEERING_IMMEDIATE_RATE_DEG_SEC: 1.5,
-
-  ORIENTATION_TRIGGER_ANGLE_DEG: 2,
-  ORIENTATION_CENTER_ANGLE_DEG: 1.25,
-  ORIENTATION_REARM_MS: 40,
-  ORIENTATION_STALE_MS: 500,
+  TILT_ENTER: 0.055,
+  TILT_EXIT: 0.02,
+  TILT_FAST_LOW_PASS: 0.8,
 
   // Tap
   TAP_INFLATE: 50, // px, forgiving hit-test padding

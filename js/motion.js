@@ -1,7 +1,7 @@
 // DeviceMotion → screen-space gravity vector + shake detection.
 // Cross-platform: iOS 13+ requires an explicit permission prompt fired from
 // a user gesture; Android/desktop just start listening.
-import { CONFIG } from './config.js?v=28';
+import { CONFIG } from './config.js?v=29';
 
 function screenGravityFromAccel(ax, ay) {
   const angle = (screen.orientation && screen.orientation.angle) ?? window.orientation ?? 0;
@@ -31,13 +31,9 @@ export class Motion {
     this._gestureX = 0;
     this.tiltMagnitude = 0;
     this._lastShakeAt = 0;
-    this._listeners = { orientation: [], steering: [], lateral: [], shake: [], smallshake: [] };
+    this._listeners = { lateral: [], shake: [], smallshake: [] };
     this._boundHandler = this._onDeviceMotion.bind(this);
-    this._boundOrientationHandler = this._onDeviceOrientation.bind(this);
     this._started = false;
-    this._lastMotionAt = null;
-    this._lastOrientationAt = Number.NEGATIVE_INFINITY;
-    this.orientationAngle = null;
     // Diagnostics kept for console/testing; no on-screen debug is rendered.
     this.permissionState = 'not-requested'; // not-requested | granted | denied | not-needed
     this.eventCount = 0;
@@ -54,23 +50,15 @@ export class Motion {
 
   // Must be called from within a user-gesture handler (e.g. the OK button tap).
   async requestPermission() {
-    const requests = [];
-    try {
-      if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
-        requests.push(DeviceMotionEvent.requestPermission());
-      }
-      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-        requests.push(DeviceOrientationEvent.requestPermission());
-      }
-      if (requests.length === 0) {
-        this.permissionState = 'not-needed';
-        return true;
-      }
+    if (typeof DeviceMotionEvent === 'undefined' || typeof DeviceMotionEvent.requestPermission !== 'function') {
+      this.permissionState = 'not-needed';
+      return true;
+    }
 
-      const results = await Promise.allSettled(requests);
-      const granted = results.some((result) => result.status === 'fulfilled' && result.value === 'granted');
-      this.permissionState = granted ? 'granted' : 'denied';
-      return granted;
+    try {
+      const result = await DeviceMotionEvent.requestPermission();
+      this.permissionState = result === 'granted' ? 'granted' : 'denied';
+      return result === 'granted';
     } catch (err) {
       this.permissionState = 'denied';
       console.warn('[motion] permission request failed:', err);
@@ -81,36 +69,25 @@ export class Motion {
   start() {
     if (this._started) return;
     this._started = true;
-    this._lastMotionAt = null;
     window.addEventListener('devicemotion', this._boundHandler);
-    window.addEventListener('deviceorientation', this._boundOrientationHandler);
   }
 
   stop() {
     if (!this._started) return;
     this._started = false;
-    this._lastMotionAt = null;
     window.removeEventListener('devicemotion', this._boundHandler);
-    window.removeEventListener('deviceorientation', this._boundOrientationHandler);
-  }
-
-  _onDeviceOrientation(event) {
-    if (!Number.isFinite(event.alpha)) return;
-    const now = performance.now();
-    this.orientationAngle = event.alpha;
-    this._lastOrientationAt = now;
-    this._emit('orientation', {
-      angle: event.alpha,
-      timestamp: now,
-    });
   }
 
   _onDeviceMotion(e) {
     this.eventCount++;
     const gRaw = e.accelerationIncludingGravity;
-    if (!gRaw || gRaw.x === null) return;
+    if (!gRaw || !Number.isFinite(gRaw.x) || !Number.isFinite(gRaw.y)) return;
 
-    const screenG = screenGravityFromAccel(gRaw.x, gRaw.y);
+    const linear = e.acceleration;
+    const gravityX = Number.isFinite(linear?.x) ? gRaw.x - linear.x : gRaw.x;
+    const gravityY = Number.isFinite(linear?.y) ? gRaw.y - linear.y : gRaw.y;
+
+    const screenG = screenGravityFromAccel(gravityX, gravityY);
     // Normalize against ~9.8 m/s^2 so gravity.x/y are roughly in [-1, 1].
     const norm = 9.8;
     const gx = screenG.x / norm;
@@ -122,30 +99,12 @@ export class Motion {
     this._gestureX += (gx - this._gestureX) * CONFIG.TILT_FAST_LOW_PASS;
     this.tiltMagnitude = Math.hypot(this.gravity.x, this.gravity.y);
     const now = performance.now();
-    const elapsedSec = this._lastMotionAt === null ? Number.NaN : (now - this._lastMotionAt) / 1000;
-    const reportedInterval = Number(e.interval);
-    const reportedSec = reportedInterval > 1 ? reportedInterval / 1000 : reportedInterval;
-    const rawDt = Number.isFinite(elapsedSec) && elapsedSec > 0 ? elapsedSec : reportedSec;
-    const dt = Math.max(1 / 240, Math.min(CONFIG.STEERING_MAX_DT_SEC, Number.isFinite(rawDt) && rawDt > 0 ? rawDt : 1 / 60));
-    this._lastMotionAt = now;
-
-    const steeringRate = e.rotationRate?.alpha;
-    const orientationIsFresh = now - this._lastOrientationAt <= CONFIG.ORIENTATION_STALE_MS;
-    if (Number.isFinite(steeringRate)) {
-      this._emit('steering', {
-        rate: steeringRate,
-        dt,
-        timestamp: now,
-        orientationFresh: orientationIsFresh,
-        orientationAngle: this.orientationAngle,
-      });
-    } else if (!orientationIsFresh) {
-      this._emit('lateral', {
-        x: this._gestureX,
-        gravityX: this.gravity.x,
-        timestamp: now,
-      });
-    }
+    this._emit('lateral', {
+      x: this._gestureX,
+      gravityX: this.gravity.x,
+      rawGravityX: gx,
+      timestamp: now,
+    });
 
     // Shake detection: prefer gravity-excluded acceleration; fall back to a
     // high-pass of accelerationIncludingGravity (common on Android where
