@@ -1,8 +1,8 @@
 // Tilt-revealed toys using the split-alpha video clips.
-import { CONFIG } from './config.js?v=32';
-import { SideGestureGate } from './gesture.js?v=32';
-import { isVideoTouchLocked, videoFinished } from './media.js?v=32';
-import { stepToyPhysics } from './physics.js?v=32';
+import { CONFIG } from './config.js?v=34';
+import { SideGestureGate } from './gesture.js?v=34';
+import { isVideoTouchLocked, videoFinished } from './media.js?v=34';
+import { stepToyPhysics } from './physics.js?v=34';
 
 let toyIdCounter = 0;
 
@@ -221,6 +221,8 @@ export class ToyManager {
       rearmMs: CONFIG.DIFFICULTY.easy.rearmSec * 1000,
     });
     this.neutralTiltX = null;
+    this._neutralCandidateX = null;
+    this._neutralCandidateSince = null;
     this._preparedClips = [];
     this._destroyTex = null;
     this._fillPreparedQueue();
@@ -251,10 +253,16 @@ export class ToyManager {
     return `video ${t.clip} ${t.side}/${this.difficulty}: rs=${v.readyState} ${v.paused ? 'paused' : 'playing'} t=${v.currentTime.toFixed(2)} tilt=${this.gestureGate.state}`;
   }
 
-  reset() {
+  reset(preserveNeutralTilt = false) {
     for (const toy of [...this.toys]) this._removeToy(toy);
     this.gestureGate.reset();
-    this.neutralTiltX = null;
+    if (preserveNeutralTilt && this.neutralTiltX !== null) {
+      this.gestureGate.arm();
+    } else {
+      this.neutralTiltX = null;
+      this._neutralCandidateX = null;
+      this._neutralCandidateSince = null;
+    }
     this._fillPreparedQueue();
   }
 
@@ -289,15 +297,37 @@ export class ToyManager {
     });
   }
 
+  observeLateralMotion(sample) {
+    if (!Number.isFinite(sample.x)) return null;
+    const timestamp = Number.isFinite(sample.timestamp) ? sample.timestamp : performance.now();
+    if (this.neutralTiltX !== null) return this.neutralTiltX;
+    if (Math.abs(sample.x) > CONFIG.TILT_NEUTRAL_CAPTURE_MAX) {
+      this._neutralCandidateX = null;
+      this._neutralCandidateSince = null;
+      return null;
+    }
+    if (
+      this._neutralCandidateX === null
+      || Math.abs(sample.x - this._neutralCandidateX) > CONFIG.TILT_NEUTRAL_STABLE_DELTA
+    ) {
+      this._neutralCandidateX = sample.x;
+      this._neutralCandidateSince = timestamp;
+      return null;
+    }
+    this._neutralCandidateX += (sample.x - this._neutralCandidateX) * CONFIG.TILT_NEUTRAL_FOLLOW;
+    if (timestamp - this._neutralCandidateSince < CONFIG.TILT_NEUTRAL_STABLE_MS) return null;
+    this.neutralTiltX = this._neutralCandidateX;
+    this._neutralCandidateX = null;
+    this._neutralCandidateSince = null;
+    this.gestureGate.arm();
+    return this.neutralTiltX;
+  }
+
   handleLateralMotion(sample) {
     if (!Number.isFinite(sample.x)) return null;
     const timestamp = Number.isFinite(sample.timestamp) ? sample.timestamp : performance.now();
-    if (this.neutralTiltX === null) {
-      if (Math.abs(sample.x) > CONFIG.TILT_NEUTRAL_CAPTURE_MAX) return null;
-      this.neutralTiltX = sample.x;
-      this.gestureGate.arm();
-      return null;
-    }
+    if (this.observeLateralMotion(sample) === null) return null;
+    if (this.neutralTiltX === null) return null;
     let relativeTilt = sample.x - this.neutralTiltX;
     const wasWaitingForCenter = this.gestureGate.state === 'waiting-neutral';
     if (Math.abs(relativeTilt) <= CONFIG.TILT_EXIT) {

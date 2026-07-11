@@ -1,13 +1,13 @@
 // State machine + main loop tying together camera, motion, physics, toys, UI and FX.
-import { CONFIG } from './config.js?v=32';
-import { loadManifest } from './manifest.js?v=32';
-import { UI } from './ui.js?v=32';
-import { Renderer } from './renderer.js?v=32';
-import { startCamera } from './camera.js?v=32';
-import { Motion } from './motion.js?v=32';
-import { ToyManager } from './toys.js?v=32';
-import { Fx } from './fx.js?v=32';
-import { Monitor } from './monitor.js?v=32';
+import { CONFIG } from './config.js?v=34';
+import { loadManifest } from './manifest.js?v=34';
+import { UI } from './ui.js?v=34';
+import { Renderer } from './renderer.js?v=34';
+import { startCamera } from './camera.js?v=34';
+import { Motion } from './motion.js?v=34';
+import { ToyManager } from './toys.js?v=34';
+import { Fx } from './fx.js?v=34';
+import { Monitor } from './monitor.js?v=34';
 
 const stageEl = document.getElementById('stage');
 const cameraEl = document.getElementById('camera');
@@ -93,7 +93,9 @@ class Game {
     this.toys.onScore = (toy) => this._onToyGrabbed(toy);
 
     this.motion.on('lateral', (sample) => {
-      const toy = this.state === STATE.PLAYING ? this.toys.handleLateralMotion(sample) : null;
+      const toy = this.state === STATE.PLAYING
+        ? this.toys.handleLateralMotion(sample)
+        : (this.toys.observeLateralMotion(sample), null);
       this.monitor.report('lateral', {
         state: this.state,
         permission: this.motion.permissionState,
@@ -101,6 +103,7 @@ class Game {
         tilt: sample.x,
         rawTilt: sample.rawGravityX,
         center: this.toys.neutralTiltX,
+        candidate: this.toys._neutralCandidateX,
         waitingForCenter: this.toys.neutralTiltX === null,
         gate: this.toys.gestureGate.state,
         toys: this.toys.toys.length,
@@ -175,7 +178,7 @@ class Game {
     this.foundCount = 0;
     this.timeLeft = CONFIG.GAME_SECONDS;
     this.toys.setDifficulty(this.difficulty);
-    this.toys.reset();
+    this.toys.reset(true);
     this.ui.updatePoints(0);
     this.ui.updateTimer(this.timeLeft);
     this.state = STATE.PLAYING;
