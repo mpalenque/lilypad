@@ -89,6 +89,13 @@ export class AbsoluteSteeringGate {
     }
     return null;
   }
+
+  triggerFromRate(rateDegSec, thresholdDegSec) {
+    if (this.state !== 'armed' || Math.abs(rateDegSec) < thresholdDegSec) return null;
+    this.state = 'waiting-center';
+    this.neutralSince = null;
+    return rateDegSec > 0 ? 'right' : 'left';
+  }
 }
 
 export class SteeringGestureGate {

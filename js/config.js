@@ -1,6 +1,6 @@
 // Central tunable constants for Lilypad Shake.
 export const CONFIG = {
-  BUILD: 'LILYPAD absolute steering cycle build 27',
+  BUILD: 'LILYPAD instant steering cycle build 28',
 
   STAGE_W: 1920,
   STAGE_H: 1200,
@@ -15,15 +15,15 @@ export const CONFIG = {
   TOY_ASPECT: 640 / 720, // color-half aspect (portrait split-alpha videos)
   TOY_Y: 600,
   TOY_START_X_OFFSET: 22,
-  TOY_INITIAL_VISIBLE_PX: 48,
+  TOY_INITIAL_VISIBLE_PX: 320,
   TOY_LIFETIME_SEC: 2,
   TOY_RETREAT_LEAD_SEC: 0.25,
 
   // Physics — a fresh tilt gesture reveals the toy from its side; after the
   // full video ends it hides back through that same side.
-  SLIDE_SPEED: 4400, // px/s at full tilt
-  RETREAT_SPEED: 4600,
-  SLIDE_EASE_APPROACH: 40.0,
+  SLIDE_SPEED: 6400, // px/s at full tilt
+  RETREAT_SPEED: 6000,
+  SLIDE_EASE_APPROACH: 50.0,
   MIN_REVEAL_SPEED: 0.34,
   TILT_FULL: 0.42,
   BOUNCE_MIN_SPEED: 750,
@@ -68,14 +68,15 @@ export const CONFIG = {
   TILT_FAST_LOW_PASS: 0.72,
 
   STEERING_SIGN: 1,
-  STEERING_TRIGGER_RATE_DEG_SEC: 4,
+  STEERING_TRIGGER_RATE_DEG_SEC: 2,
   STEERING_RETURN_RATE_DEG_SEC: 1.5,
   STEERING_NEUTRAL_RATE_DEG_SEC: 1,
   STEERING_REARM_MS: 40,
   STEERING_MAX_DT_SEC: 0.05,
+  STEERING_IMMEDIATE_RATE_DEG_SEC: 1.5,
 
-  ORIENTATION_TRIGGER_ANGLE_DEG: 3.5,
-  ORIENTATION_CENTER_ANGLE_DEG: 1.5,
+  ORIENTATION_TRIGGER_ANGLE_DEG: 2,
+  ORIENTATION_CENTER_ANGLE_DEG: 1.25,
   ORIENTATION_REARM_MS: 40,
   ORIENTATION_STALE_MS: 500,
 

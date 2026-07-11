@@ -1,5 +1,5 @@
 // Feedback effects: star-sheet burst (port of ARStarsBurst), white flash, sounds.
-import { CONFIG } from './config.js?v=27';
+import { CONFIG } from './config.js?v=28';
 
 const STAR_SHEET = {
   cols: 6,

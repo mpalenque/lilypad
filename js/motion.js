@@ -1,7 +1,7 @@
 // DeviceMotion → screen-space gravity vector + shake detection.
 // Cross-platform: iOS 13+ requires an explicit permission prompt fired from
 // a user gesture; Android/desktop just start listening.
-import { CONFIG } from './config.js?v=27';
+import { CONFIG } from './config.js?v=28';
 
 function screenGravityFromAccel(ax, ay) {
   const angle = (screen.orientation && screen.orientation.angle) ?? window.orientation ?? 0;
@@ -131,13 +131,15 @@ export class Motion {
 
     const steeringRate = e.rotationRate?.alpha;
     const orientationIsFresh = now - this._lastOrientationAt <= CONFIG.ORIENTATION_STALE_MS;
-    if (!orientationIsFresh && Number.isFinite(steeringRate)) {
+    if (Number.isFinite(steeringRate)) {
       this._emit('steering', {
         rate: steeringRate,
         dt,
         timestamp: now,
+        orientationFresh: orientationIsFresh,
+        orientationAngle: this.orientationAngle,
       });
-    } else if (!orientationIsFresh && !Number.isFinite(steeringRate)) {
+    } else if (!orientationIsFresh) {
       this._emit('lateral', {
         x: this._gestureX,
         gravityX: this.gravity.x,

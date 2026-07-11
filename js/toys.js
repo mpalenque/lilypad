@@ -1,8 +1,8 @@
 // Tilt-revealed toys using the split-alpha video clips.
-import { CONFIG } from './config.js?v=27';
-import { AbsoluteSteeringGate, SideGestureGate, SteeringGestureGate } from './gesture.js?v=27';
-import { isVideoTouchLocked, videoFinished } from './media.js?v=27';
-import { stepToyPhysics } from './physics.js?v=27';
+import { CONFIG } from './config.js?v=28';
+import { AbsoluteSteeringGate, SideGestureGate, SteeringGestureGate } from './gesture.js?v=28';
+import { isVideoTouchLocked, videoFinished } from './media.js?v=28';
+import { stepToyPhysics } from './physics.js?v=28';
 
 let toyIdCounter = 0;
 
@@ -317,6 +317,14 @@ export class ToyManager {
     if (!Number.isFinite(sample.rate)) return null;
     const timestamp = Number.isFinite(sample.timestamp) ? sample.timestamp : performance.now();
     const signedRate = CONFIG.STEERING_SIGN * sample.rate;
+    if (sample.orientationFresh && this.absoluteSteeringGate.centerDeg !== null) {
+      const immediateSide = this.absoluteSteeringGate.triggerFromRate(signedRate, CONFIG.STEERING_IMMEDIATE_RATE_DEG_SEC);
+      if (!immediateSide) return null;
+      this.gestureGate.reset();
+      this.steeringGate.reset();
+      return this.spawnFromSide(immediateSide, true);
+    }
+
     const wasWaitingForCenter = this.steeringGate.state === 'waiting-center';
     const side = this.steeringGate.update(signedRate, timestamp);
     if (wasWaitingForCenter && this.steeringGate.state === 'armed') this._retreatActiveToys();
