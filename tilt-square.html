@@ -133,6 +133,8 @@
       const EXIT_THRESHOLD = 0.011;
       const TAP_REARM_THRESHOLD = 0.015;
       const SQUARE_VISIBLE_MS = 1200;
+      const SQUARE_VERTICAL_MARGIN = 28;
+      const SQUARE_MIN_VERTICAL_GAP = 72;
       const REFERENCE_STABLE_DELTA = 0.01;
       const REFERENCE_SETTLE_MS = 180;
       const FIRST_TILT_HOLD_MS = 35;
@@ -157,6 +159,7 @@
       let squareVisible = false;
       let squareShowSequence = 0;
       let squareHideTimer = null;
+      let previousSquareTop = null;
       let tapRearmRequested = false;
       let lastTelemetryAt = 0;
 
@@ -215,12 +218,33 @@
         squareHideTimer = null;
       }
 
+      function placeSquareVertically() {
+        const squareHeight = squareElement.getBoundingClientRect().height;
+        const minimumTop = SQUARE_VERTICAL_MARGIN + squareHeight / 2;
+        const maximumTop = Math.max(minimumTop, window.innerHeight - SQUARE_VERTICAL_MARGIN - squareHeight / 2);
+        const maximumGap = Math.max(0, maximumTop - minimumTop);
+        const requiredGap = Math.min(SQUARE_MIN_VERTICAL_GAP, maximumGap * 0.35);
+        let nextTop = minimumTop + Math.random() * maximumGap;
+
+        for (let attempt = 0; attempt < 8; attempt++) {
+          const candidateTop = minimumTop + Math.random() * maximumGap;
+          if (previousSquareTop === null || Math.abs(candidateTop - previousSquareTop) >= requiredGap) {
+            nextTop = candidateTop;
+            break;
+          }
+        }
+
+        previousSquareTop = nextTop;
+        squareElement.style.top = `${nextTop}px`;
+      }
+
       function showSquare(side) {
         clearSquareHideTimer();
         tapRearmRequested = false;
         const showSequence = ++squareShowSequence;
         squareElement.classList.remove('visible', 'animate', 'left', 'right');
         squareElement.classList.add(side);
+        placeSquareVertically();
         squareVisible = true;
         void squareElement.offsetWidth;
         squareElement.classList.add('animate');

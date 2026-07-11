@@ -1,8 +1,8 @@
 // Tilt-revealed toys using the split-alpha video clips.
-import { CONFIG } from './config.js?v=36';
-import { SideGestureGate } from './gesture.js?v=36';
-import { isVideoTouchLocked, videoFinished } from './media.js?v=36';
-import { stepToyPhysics } from './physics.js?v=36';
+import { CONFIG } from './config.js?v=37';
+import { SideGestureGate } from './gesture.js?v=37';
+import { isVideoTouchLocked, videoFinished } from './media.js?v=37';
+import { stepToyPhysics } from './physics.js?v=37';
 
 let toyIdCounter = 0;
 
@@ -12,10 +12,6 @@ function shuffle(arr) {
     [arr[i], arr[j]] = [arr[j], arr[i]];
   }
   return arr;
-}
-
-function rand(min, max) {
-  return min + Math.random() * (max - min);
 }
 
 function visibleRectFor(toy) {
@@ -218,11 +214,15 @@ export class ToyManager {
     this.gestureGate = new SideGestureGate({
       enterThreshold: CONFIG.TILT_ENTER,
       exitThreshold: CONFIG.TILT_EXIT,
-      rearmMs: CONFIG.DIFFICULTY.easy.rearmSec * 1000,
+      initialHoldMs: CONFIG.TILT_FIRST_HOLD_MS,
+      oppositeHoldMs: CONFIG.TILT_OPPOSITE_HOLD_MS,
+      neutralHoldMs: CONFIG.DIFFICULTY.easy.rearmSec * 1000,
     });
     this.neutralTiltX = null;
     this._neutralCandidateX = null;
     this._neutralCandidateSince = null;
+    this._tapRearmRequested = false;
+    this._lastToyY = null;
     this._preparedClips = [];
     this._destroyTex = null;
     this._fillPreparedQueue();
@@ -239,7 +239,7 @@ export class ToyManager {
   setDifficulty(mode) {
     this.difficulty = mode === 'hard' ? 'hard' : 'easy';
     const rearmSec = this._difficultyConfig().rearmSec ?? CONFIG.TILT_REARM_SEC;
-    this.gestureGate.setRearmMs(rearmSec * 1000);
+    this.gestureGate.setNeutralHoldMs(rearmSec * 1000);
   }
 
   _difficultyConfig() {
@@ -256,6 +256,7 @@ export class ToyManager {
   reset(preserveNeutralTilt = false) {
     for (const toy of [...this.toys]) this._removeToy(toy);
     this.gestureGate.reset();
+    this._tapRearmRequested = false;
     if (preserveNeutralTilt && this.neutralTiltX !== null) {
       this.gestureGate.arm();
     } else {
@@ -328,24 +329,57 @@ export class ToyManager {
     const timestamp = Number.isFinite(sample.timestamp) ? sample.timestamp : performance.now();
     if (this.observeLateralMotion(sample) === null) return null;
     if (this.neutralTiltX === null) return null;
-    let relativeTilt = sample.x - this.neutralTiltX;
-    const wasWaitingForCenter = this.gestureGate.state === 'waiting-neutral';
-    if (Math.abs(relativeTilt) <= CONFIG.TILT_EXIT) {
+    const relativeTilt = sample.x - this.neutralTiltX;
+    const signedTilt = CONFIG.TILT_SIGN_X * relativeTilt;
+    const hasVisibleToy = this.toys.some((toy) => !toy.expiring);
+    const neutralThreshold = this._tapRearmRequested
+      ? CONFIG.TILT_TAP_REARM
+      : CONFIG.TILT_EXIT;
+    const { side, rearmed } = this.gestureGate.update(signedTilt, timestamp, {
+      blocked: hasVisibleToy,
+      exitThreshold: neutralThreshold,
+    });
+
+    if (rearmed) {
+      this._tapRearmRequested = false;
       this.neutralTiltX += relativeTilt * CONFIG.TILT_NEUTRAL_FOLLOW;
-      if (wasWaitingForCenter) {
-        this.gestureGate.arm();
-        this._retreatActiveToys();
-      }
+      this._retreatActiveToys();
       return null;
     }
-    const signedTilt = CONFIG.TILT_SIGN_X * relativeTilt;
-    const side = this.gestureGate.update(signedTilt, timestamp);
+
+    if (
+      Math.abs(relativeTilt) <= neutralThreshold
+      && this.gestureGate.state === 'armed'
+      && !hasVisibleToy
+    ) {
+      this.neutralTiltX += relativeTilt * CONFIG.TILT_NEUTRAL_FOLLOW;
+    }
+
     if (!side) return null;
     return this.spawnFromSide(side, true);
   }
 
   _retreatActiveToys() {
     for (const toy of this.toys) this._beginExpireToy(toy);
+  }
+
+  _pickToyY(height) {
+    const minimumY = Math.max(height / 2, CONFIG.TOY_Y - CONFIG.TOY_Y_JITTER_PX);
+    const maximumY = Math.min(CONFIG.STAGE_H - height / 2, CONFIG.TOY_Y + CONFIG.TOY_Y_JITTER_PX);
+    const availableRange = Math.max(0, maximumY - minimumY);
+    const requiredGap = Math.min(CONFIG.TOY_Y_MIN_GAP_PX, availableRange * 0.35);
+    let nextY = minimumY + Math.random() * availableRange;
+
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const candidateY = minimumY + Math.random() * availableRange;
+      if (this._lastToyY === null || Math.abs(candidateY - this._lastToyY) >= requiredGap) {
+        nextY = candidateY;
+        break;
+      }
+    }
+
+    this._lastToyY = nextY;
+    return nextY;
   }
 
   spawnFromSide(side, replaceActive = false) {
@@ -363,11 +397,9 @@ export class ToyManager {
     const w = h * CONFIG.TOY_ASPECT;
     const fromRight = side === 'right';
     const hiddenX = fromRight ? CONFIG.STAGE_W + w / 2 + CONFIG.TOY_START_X_OFFSET : -w / 2 - CONFIG.TOY_START_X_OFFSET;
-    const spawnX = fromRight
-      ? CONFIG.STAGE_W + w / 2 - CONFIG.TOY_INITIAL_VISIBLE_PX
-      : -w / 2 + CONFIG.TOY_INITIAL_VISIBLE_PX;
+    const spawnX = hiddenX;
     const settings = this._difficultyConfig();
-    const y = CONFIG.TOY_Y + rand(-14, 14);
+    const y = this._pickToyY(h);
 
     const toy = {
       id: ++toyIdCounter,
@@ -575,6 +607,8 @@ export class ToyManager {
       best.grabbing = true;
       best.canTap = false;
       best.grabT = 0;
+      this._tapRearmRequested = true;
+      this.gestureGate.clearPendingDirection();
       if (this.onScore) this.onScore(best);
     }
     return best;

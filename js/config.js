@@ -1,6 +1,6 @@
 // Central tunable constants for Lilypad Shake.
 export const CONFIG = {
-  BUILD: 'LILYPAD bidirectional micro-tilt build 36',
+  BUILD: 'LILYPAD stable tilt video build 37',
 
   STAGE_W: 1920,
   STAGE_H: 1200,
@@ -14,22 +14,23 @@ export const CONFIG = {
   TOY_HEIGHT_PX: 918,
   TOY_ASPECT: 640 / 720, // color-half aspect (portrait split-alpha videos)
   TOY_Y: 600,
+  TOY_Y_JITTER_PX: 110,
+  TOY_Y_MIN_GAP_PX: 64,
   TOY_START_X_OFFSET: 22,
-  TOY_INITIAL_VISIBLE_PX: 480,
   TOY_LIFETIME_SEC: 2,
   TOY_RETREAT_LEAD_SEC: 0.25,
 
   // Physics — a fresh tilt gesture reveals the toy from its side; after the
   // full video ends it hides back through that same side.
-  SLIDE_SPEED: 6400, // px/s at full tilt
-  RETREAT_SPEED: 6000,
-  SLIDE_EASE_APPROACH: 50.0,
+  SLIDE_SPEED: 3000, // px/s at full tilt
+  RETREAT_SPEED: 3200,
+  SLIDE_EASE_APPROACH: 16.0,
   MIN_REVEAL_SPEED: 0.34,
   TILT_FULL: 0.42,
-  BOUNCE_MIN_SPEED: 750,
-  BOUNCE_MAX_PX: 58,
-  BOUNCE_DURATION: 0.28,
-  BOUNCE_ANGLE_DEG: 1.0,
+  BOUNCE_MIN_SPEED: 0,
+  BOUNCE_MAX_PX: 0,
+  BOUNCE_DURATION: 0,
+  BOUNCE_ANGLE_DEG: 0,
   EXPIRE_FADE_SEC: 0.18,
   TILT_REARM_SEC: 0.12,
   TOUCH_DISABLE_BEFORE_END_SEC: 2,
@@ -44,14 +45,14 @@ export const CONFIG = {
       retreatSpeedMul: 1.0,
       easeMul: 1.0,
       expireFadeSec: 0.22,
-      rearmSec: 0.08,
+      rearmSec: 0.045,
     },
     hard: {
       slideSpeedMul: 1.45,
       retreatSpeedMul: 1.85,
       easeMul: 1.35,
       expireFadeSec: 0.08,
-      rearmSec: 0.08,
+      rearmSec: 0.045,
     },
   },
 
@@ -60,15 +61,18 @@ export const CONFIG = {
   SHAKE_DEBOUNCE_MS: 350,
   SMALL_SHAKE_THRESHOLD: 7,
 
-  // Screen-space gravity is the only trigger. A left edge that is lower has a
-  // negative X value and must reveal the video on the right (and vice versa).
-  TILT_SIGN_X: -1,
-  TILT_ENTER: 0.006,
-  TILT_EXIT: 0.003,
+  // Screen-space gravity is the only trigger. Each side reveals its video from
+  // that same screen edge after the stable tilt gesture completes.
+  TILT_SIGN_X: 1,
+  TILT_ENTER: 0.018,
+  TILT_EXIT: 0.011,
+  TILT_TAP_REARM: 0.015,
+  TILT_FIRST_HOLD_MS: 35,
+  TILT_OPPOSITE_HOLD_MS: 140,
   TILT_FAST_LOW_PASS: 1.0,
   TILT_NEUTRAL_CAPTURE_MAX: 0.35,
   TILT_NEUTRAL_STABLE_DELTA: 0.01,
-  TILT_NEUTRAL_STABLE_MS: 100,
+  TILT_NEUTRAL_STABLE_MS: 180,
   TILT_NEUTRAL_FOLLOW: 0.12,
 
   // Tap

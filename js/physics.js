@@ -1,5 +1,5 @@
 // Fast bounded horizontal slide with a light edge bounce.
-import { CONFIG } from './config.js?v=36';
+import { CONFIG } from './config.js?v=37';
 
 function clamp01(value) {
   return Math.max(0, Math.min(1, value));
@@ -12,6 +12,7 @@ function tiltResponse(amount) {
 }
 
 function triggerBounce(toy, impactSpeed) {
+  if (CONFIG.BOUNCE_MAX_PX <= 0 || CONFIG.BOUNCE_ANGLE_DEG === 0) return;
   const strength = clamp01((impactSpeed - CONFIG.BOUNCE_MIN_SPEED) / CONFIG.SLIDE_SPEED);
   if (strength <= 0) return;
   toy.bounceT = 0;
