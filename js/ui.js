@@ -1,7 +1,7 @@
-// Lily UI overlay: START / INSTRUCTIONS / HUD / RESULTS screens, built from the
+// Lily UI overlay: DIFFICULTY / INSTRUCTIONS / HUD / RESULTS screens, built from the
 // exact sprites cut from "GUI lilypad.psd", positioned via the PSD manifest.
-import { CONFIG } from './config.js?v=37';
-import { DIGIT_SLOTS } from './manifest.js?v=37';
+import { CONFIG } from './config.js?v=38';
+import { DIGIT_SLOTS } from './manifest.js?v=38';
 
 function place(el, m) {
   el.style.left = `${m.cx - m.w / 2}px`;
@@ -177,7 +177,6 @@ export class UI {
   }
 
   _build() {
-    this.screens.start = this._buildStart();
     this.screens.difficulty = this._buildDifficulty();
     this.screens.instructions = this._buildInstructions();
     this.screens.hud = this._buildHud();
@@ -190,19 +189,6 @@ export class UI {
     this.flashEl = document.createElement('div');
     this.flashEl.id = 'flashOverlay';
     this.root.appendChild(this.flashEl);
-  }
-
-  _buildStart() {
-    const el = document.createElement('div');
-    el.appendChild(img('assets/ui/lily_bg.png', this.manifest.lily_bg));
-    el.appendChild(img('assets/ui/lily_title.png', this.manifest.lily_title));
-    el.appendChild(img('assets/ui/lily_copyright.png', this.manifest.lily_copyright));
-    const okBtn = document.createElement('button');
-    okBtn.id = 'okBtn';
-    okBtn.className = 'lily-btn';
-    okBtn.textContent = 'OK';
-    el.appendChild(okBtn);
-    return { el, okBtn };
   }
 
   _buildDifficulty() {
@@ -262,10 +248,6 @@ export class UI {
     for (const [key, s] of Object.entries(this.screens)) {
       s.el.classList.toggle('hidden', key !== name);
     }
-  }
-
-  showStart() {
-    this._showOnly('start');
   }
 
   showInstructions() {

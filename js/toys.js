@@ -1,8 +1,8 @@
 // Tilt-revealed toys using the split-alpha video clips.
-import { CONFIG } from './config.js?v=37';
-import { SideGestureGate } from './gesture.js?v=37';
-import { isVideoTouchLocked, videoFinished } from './media.js?v=37';
-import { stepToyPhysics } from './physics.js?v=37';
+import { CONFIG } from './config.js?v=38';
+import { SideGestureGate } from './gesture.js?v=38';
+import { isVideoTouchLocked, videoFinished } from './media.js?v=38';
+import { stepToyPhysics } from './physics.js?v=38';
 
 let toyIdCounter = 0;
 
@@ -16,8 +16,8 @@ function shuffle(arr) {
 
 function visibleRectFor(toy) {
   const scale = toy.scale ?? 1;
-  const w = toy.w * scale;
-  const h = toy.h * scale;
+  const w = (toy.hitW ?? toy.w) * scale;
+  const h = (toy.hitH ?? toy.h) * scale;
   const cx = toy.renderX ?? toy.x;
   const cy = toy.renderY ?? toy.y;
   const left = cx - w / 2;
@@ -219,10 +219,14 @@ export class ToyManager {
       neutralHoldMs: CONFIG.DIFFICULTY.easy.rearmSec * 1000,
     });
     this.neutralTiltX = null;
+    this.neutralTiltY = null;
     this._neutralCandidateX = null;
+    this._neutralCandidateY = null;
     this._neutralCandidateSince = null;
+    this._activeTiltAxis = null;
     this._tapRearmRequested = false;
-    this._lastToyY = null;
+    this._lastHorizontalY = null;
+    this._lastVerticalX = null;
     this._preparedClips = [];
     this._destroyTex = null;
     this._fillPreparedQueue();
@@ -248,7 +252,7 @@ export class ToyManager {
 
   debugVideoInfo() {
     const t = this.toys[0];
-    if (!t || !t.videoEl) return `video: (none)  tilt=${this.gestureGate.state} center=${this.neutralTiltX}`;
+    if (!t || !t.videoEl) return `video: (none)  tilt=${this.gestureGate.state} center=${this.neutralTiltX},${this.neutralTiltY}`;
     const v = t.videoEl;
     return `video ${t.clip} ${t.side}/${this.difficulty}: rs=${v.readyState} ${v.paused ? 'paused' : 'playing'} t=${v.currentTime.toFixed(2)} tilt=${this.gestureGate.state}`;
   }
@@ -256,12 +260,15 @@ export class ToyManager {
   reset(preserveNeutralTilt = false) {
     for (const toy of [...this.toys]) this._removeToy(toy);
     this.gestureGate.reset();
+    this._activeTiltAxis = null;
     this._tapRearmRequested = false;
-    if (preserveNeutralTilt && this.neutralTiltX !== null) {
+    if (preserveNeutralTilt && this.neutralTiltX !== null && this.neutralTiltY !== null) {
       this.gestureGate.arm();
     } else {
       this.neutralTiltX = null;
+      this.neutralTiltY = null;
       this._neutralCandidateX = null;
+      this._neutralCandidateY = null;
       this._neutralCandidateSince = null;
     }
     this._fillPreparedQueue();
@@ -299,38 +306,51 @@ export class ToyManager {
   }
 
   observeLateralMotion(sample) {
-    if (!Number.isFinite(sample.x)) return null;
+    if (!Number.isFinite(sample.x) || !Number.isFinite(sample.y)) return null;
     const timestamp = Number.isFinite(sample.timestamp) ? sample.timestamp : performance.now();
-    if (this.neutralTiltX !== null) return this.neutralTiltX;
+    if (this.neutralTiltX !== null && this.neutralTiltY !== null) return this.neutralTiltX;
     if (Math.abs(sample.x) > CONFIG.TILT_NEUTRAL_CAPTURE_MAX) {
       this._neutralCandidateX = null;
+      this._neutralCandidateY = null;
       this._neutralCandidateSince = null;
       return null;
     }
     if (
       this._neutralCandidateX === null
       || Math.abs(sample.x - this._neutralCandidateX) > CONFIG.TILT_NEUTRAL_STABLE_DELTA
+      || Math.abs(sample.y - this._neutralCandidateY) > CONFIG.TILT_NEUTRAL_STABLE_DELTA
     ) {
       this._neutralCandidateX = sample.x;
+      this._neutralCandidateY = sample.y;
       this._neutralCandidateSince = timestamp;
       return null;
     }
     this._neutralCandidateX += (sample.x - this._neutralCandidateX) * CONFIG.TILT_NEUTRAL_FOLLOW;
+    this._neutralCandidateY += (sample.y - this._neutralCandidateY) * CONFIG.TILT_NEUTRAL_FOLLOW;
     if (timestamp - this._neutralCandidateSince < CONFIG.TILT_NEUTRAL_STABLE_MS) return null;
     this.neutralTiltX = this._neutralCandidateX;
+    this.neutralTiltY = this._neutralCandidateY;
     this._neutralCandidateX = null;
+    this._neutralCandidateY = null;
     this._neutralCandidateSince = null;
     this.gestureGate.arm();
     return this.neutralTiltX;
   }
 
   handleLateralMotion(sample) {
-    if (!Number.isFinite(sample.x)) return null;
+    if (!Number.isFinite(sample.x) || !Number.isFinite(sample.y)) return null;
     const timestamp = Number.isFinite(sample.timestamp) ? sample.timestamp : performance.now();
     if (this.observeLateralMotion(sample) === null) return null;
-    if (this.neutralTiltX === null) return null;
-    const relativeTilt = sample.x - this.neutralTiltX;
-    const signedTilt = CONFIG.TILT_SIGN_X * relativeTilt;
+    if (this.neutralTiltX === null || this.neutralTiltY === null) return null;
+    const relativeTiltX = sample.x - this.neutralTiltX;
+    const relativeTiltY = sample.y - this.neutralTiltY;
+    const horizontalMagnitude = Math.abs(relativeTiltX);
+    const verticalMagnitude = Math.abs(relativeTiltY);
+    const axis = this._activeTiltAxis || (horizontalMagnitude >= verticalMagnitude ? 'x' : 'y');
+    const relativeTilt = axis === 'x' ? relativeTiltX : relativeTiltY;
+    const signedTilt = axis === 'x'
+      ? CONFIG.TILT_SIGN_X * relativeTilt
+      : CONFIG.TILT_SIGN_Y * relativeTilt;
     const hasVisibleToy = this.toys.some((toy) => !toy.expiring);
     const neutralThreshold = this._tapRearmRequested
       ? CONFIG.TILT_TAP_REARM
@@ -342,44 +362,59 @@ export class ToyManager {
 
     if (rearmed) {
       this._tapRearmRequested = false;
-      this.neutralTiltX += relativeTilt * CONFIG.TILT_NEUTRAL_FOLLOW;
+      this._activeTiltAxis = null;
+      this.neutralTiltX += relativeTiltX * CONFIG.TILT_NEUTRAL_FOLLOW;
+      this.neutralTiltY += relativeTiltY * CONFIG.TILT_NEUTRAL_FOLLOW;
       this._retreatActiveToys();
       return null;
     }
 
     if (
-      Math.abs(relativeTilt) <= neutralThreshold
+      horizontalMagnitude <= neutralThreshold
+      && verticalMagnitude <= neutralThreshold
       && this.gestureGate.state === 'armed'
       && !hasVisibleToy
     ) {
-      this.neutralTiltX += relativeTilt * CONFIG.TILT_NEUTRAL_FOLLOW;
+      this.neutralTiltX += relativeTiltX * CONFIG.TILT_NEUTRAL_FOLLOW;
+      this.neutralTiltY += relativeTiltY * CONFIG.TILT_NEUTRAL_FOLLOW;
     }
 
     if (!side) return null;
-    return this.spawnFromSide(side, true);
+    this._activeTiltAxis = axis;
+    return this.spawnFromSide(this._edgeForGesture(axis, side), true);
   }
 
   _retreatActiveToys() {
     for (const toy of this.toys) this._beginExpireToy(toy);
   }
 
-  _pickToyY(height) {
-    const minimumY = Math.max(height / 2, CONFIG.TOY_Y - CONFIG.TOY_Y_JITTER_PX);
-    const maximumY = Math.min(CONFIG.STAGE_H - height / 2, CONFIG.TOY_Y + CONFIG.TOY_Y_JITTER_PX);
-    const availableRange = Math.max(0, maximumY - minimumY);
-    const requiredGap = Math.min(CONFIG.TOY_Y_MIN_GAP_PX, availableRange * 0.35);
-    let nextY = minimumY + Math.random() * availableRange;
+  _edgeForGesture(axis, side) {
+    if (axis === 'x') return side;
+    return side === 'right' ? 'bottom' : 'top';
+  }
+
+  _pickCrossAxisPosition(axis, length) {
+    const stageLength = axis === 'x' ? CONFIG.STAGE_W : CONFIG.STAGE_H;
+    const minimumPosition = length / 2 + CONFIG.TOY_EDGE_MARGIN_PX;
+    const maximumPosition = Math.max(minimumPosition, stageLength - length / 2 - CONFIG.TOY_EDGE_MARGIN_PX);
+    const availableRange = Math.max(0, maximumPosition - minimumPosition);
+    const requiredGap = Math.min(CONFIG.TOY_POSITION_MIN_GAP_PX, availableRange * 0.35);
+    const lastPositionKey = axis === 'x' ? '_lastVerticalX' : '_lastHorizontalY';
+    let nextPosition = minimumPosition + Math.random() * availableRange;
 
     for (let attempt = 0; attempt < 8; attempt++) {
-      const candidateY = minimumY + Math.random() * availableRange;
-      if (this._lastToyY === null || Math.abs(candidateY - this._lastToyY) >= requiredGap) {
-        nextY = candidateY;
+      const candidatePosition = minimumPosition + Math.random() * availableRange;
+      if (
+        this[lastPositionKey] === null
+        || Math.abs(candidatePosition - this[lastPositionKey]) >= requiredGap
+      ) {
+        nextPosition = candidatePosition;
         break;
       }
     }
 
-    this._lastToyY = nextY;
-    return nextY;
+    this[lastPositionKey] = nextPosition;
+    return nextPosition;
   }
 
   spawnFromSide(side, replaceActive = false) {
@@ -395,34 +430,58 @@ export class ToyManager {
 
     const h = CONFIG.TOY_HEIGHT_PX;
     const w = h * CONFIG.TOY_ASPECT;
+    const vertical = side === 'top' || side === 'bottom';
+    const hitW = vertical ? h : w;
+    const hitH = vertical ? w : h;
     const fromRight = side === 'right';
-    const hiddenX = fromRight ? CONFIG.STAGE_W + w / 2 + CONFIG.TOY_START_X_OFFSET : -w / 2 - CONFIG.TOY_START_X_OFFSET;
-    const spawnX = hiddenX;
+    const fromBottom = side === 'bottom';
+    const crossAxis = vertical ? 'x' : 'y';
+    const crossPosition = this._pickCrossAxisPosition(crossAxis, vertical ? hitW : hitH);
+    const restX = vertical
+      ? crossPosition
+      : (fromRight ? CONFIG.STAGE_W - hitW / 2 : hitW / 2);
+    const restY = vertical
+      ? (fromBottom ? CONFIG.STAGE_H - hitH / 2 : hitH / 2)
+      : crossPosition;
+    const hiddenX = vertical
+      ? crossPosition
+      : (fromRight
+        ? CONFIG.STAGE_W + hitW / 2 + CONFIG.TOY_START_OFFSET_PX
+        : -hitW / 2 - CONFIG.TOY_START_OFFSET_PX);
+    const hiddenY = vertical
+      ? (fromBottom
+        ? CONFIG.STAGE_H + hitH / 2 + CONFIG.TOY_START_OFFSET_PX
+        : -hitH / 2 - CONFIG.TOY_START_OFFSET_PX)
+      : crossPosition;
     const settings = this._difficultyConfig();
-    const y = this._pickToyY(h);
+    const angle = vertical ? (side === 'top' ? 90 : -90) : 0;
 
     const toy = {
       id: ++toyIdCounter,
       clip,
       videoEl,
       side,
-      x: spawnX,
-      y,
-      renderX: spawnX,
-      renderY: y,
+      x: hiddenX,
+      y: hiddenY,
+      renderX: hiddenX,
+      renderY: hiddenY,
       w,
       h,
+      hitW,
+      hitH,
       vx: 0,
-      restX: fromRight ? CONFIG.STAGE_W - w / 2 : w / 2,
-      restY: y,
+      vy: 0,
+      restX,
+      restY,
       hiddenX,
+      hiddenY,
       resting: false,
       hidden: false,
       hasEntered: true,
       mirror: fromRight,
       scale: 1,
       alpha: 1,
-      angle: 0,
+      angle,
       playbackElapsed: 0,
       appearanceElapsed: 0,
       playbackStarted: false,

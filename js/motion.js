@@ -1,7 +1,7 @@
 // DeviceMotion → screen-space gravity vector + shake detection.
 // Cross-platform: iOS 13+ requires an explicit permission prompt fired from
 // a user gesture; Android/desktop just start listening.
-import { CONFIG } from './config.js?v=37';
+import { CONFIG } from './config.js?v=38';
 
 function screenGravityFromAccel(ax, ay) {
   const angle = (screen.orientation && screen.orientation.angle) ?? window.orientation ?? 0;
@@ -29,6 +29,7 @@ export class Motion {
     this.gravity = { x: 0, y: 1 }; // low-passed, screen-space, roughly unit scale (~9.8 raw)
     this._gravityRaw = { x: 0, y: 9.8 };
     this._gestureX = 0;
+    this._gestureY = 0;
     this.tiltMagnitude = 0;
     this._lastShakeAt = 0;
     this._listeners = { lateral: [], shake: [], smallshake: [] };
@@ -97,12 +98,16 @@ export class Motion {
     this.gravity.x += (gx - this.gravity.x) * LOW_PASS;
     this.gravity.y += (gy - this.gravity.y) * LOW_PASS;
     this._gestureX += (gx - this._gestureX) * CONFIG.TILT_FAST_LOW_PASS;
+    this._gestureY += (gy - this._gestureY) * CONFIG.TILT_FAST_LOW_PASS;
     this.tiltMagnitude = Math.hypot(this.gravity.x, this.gravity.y);
     const now = performance.now();
     this._emit('lateral', {
       x: this._gestureX,
+      y: this._gestureY,
       gravityX: this.gravity.x,
+      gravityY: this.gravity.y,
       rawGravityX: gx,
+      rawGravityY: gy,
       timestamp: now,
     });
 

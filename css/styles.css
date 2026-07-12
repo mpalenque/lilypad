@@ -131,14 +131,6 @@ body {
   filter: brightness(0.96);
 }
 
-#okBtn {
-  left: 760px;
-  top: 820px;
-  width: 400px;
-  height: 140px;
-  font-size: 64px;
-}
-
 #startBtn {
   left: 660px;
   top: 980px;

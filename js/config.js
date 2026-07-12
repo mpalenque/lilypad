@@ -1,6 +1,6 @@
 // Central tunable constants for Lilypad Shake.
 export const CONFIG = {
-  BUILD: 'LILYPAD stable tilt video build 37',
+  BUILD: 'LILYPAD four-edge tilt video build 38',
 
   STAGE_W: 1920,
   STAGE_H: 1200,
@@ -11,12 +11,11 @@ export const CONFIG = {
   // One toy on screen at a time: it enters horizontally from the side opposite
   // the tilt, stays while its video plays, then disappears at video end.
   MAX_CONCURRENT_TOYS: 1,
-  TOY_HEIGHT_PX: 918,
+  TOY_HEIGHT_PX: 643,
   TOY_ASPECT: 640 / 720, // color-half aspect (portrait split-alpha videos)
-  TOY_Y: 600,
-  TOY_Y_JITTER_PX: 110,
-  TOY_Y_MIN_GAP_PX: 64,
-  TOY_START_X_OFFSET: 22,
+  TOY_EDGE_MARGIN_PX: 32,
+  TOY_POSITION_MIN_GAP_PX: 96,
+  TOY_START_OFFSET_PX: 22,
   TOY_LIFETIME_SEC: 2,
   TOY_RETREAT_LEAD_SEC: 0.25,
 
@@ -64,6 +63,7 @@ export const CONFIG = {
   // Screen-space gravity is the only trigger. Each side reveals its video from
   // that same screen edge after the stable tilt gesture completes.
   TILT_SIGN_X: 1,
+  TILT_SIGN_Y: 1,
   TILT_ENTER: 0.018,
   TILT_EXIT: 0.011,
   TILT_TAP_REARM: 0.015,

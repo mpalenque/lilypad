@@ -1,13 +1,13 @@
 // State machine + main loop tying together camera, motion, physics, toys, UI and FX.
-import { CONFIG } from './config.js?v=37';
-import { loadManifest } from './manifest.js?v=37';
-import { UI } from './ui.js?v=37';
-import { Renderer } from './renderer.js?v=37';
-import { startCamera } from './camera.js?v=37';
-import { Motion } from './motion.js?v=37';
-import { ToyManager } from './toys.js?v=37';
-import { Fx } from './fx.js?v=37';
-import { Monitor } from './monitor.js?v=37';
+import { CONFIG } from './config.js?v=38';
+import { loadManifest } from './manifest.js?v=38';
+import { UI } from './ui.js?v=38';
+import { Renderer } from './renderer.js?v=38';
+import { startCamera } from './camera.js?v=38';
+import { Motion } from './motion.js?v=38';
+import { ToyManager } from './toys.js?v=38';
+import { Fx } from './fx.js?v=38';
+import { Monitor } from './monitor.js?v=38';
 
 const stageEl = document.getElementById('stage');
 const cameraEl = document.getElementById('camera');
@@ -54,7 +54,6 @@ function toStage(clientX, clientY) {
 
 const STATE = {
   BOOT: 'BOOT',
-  START: 'START',
   DIFFICULTY: 'DIFFICULTY',
   INSTRUCTIONS: 'INSTRUCTIONS',
   PLAYING: 'PLAYING',
@@ -70,6 +69,7 @@ class Game {
     this.motion = new Motion();
     this.monitor = new Monitor();
     this.difficulty = 'easy';
+    this._deviceFeaturesActivated = false;
     this._lastT = null;
     this._batteryTick = 0;
   }
@@ -101,11 +101,16 @@ class Game {
         permission: this.motion.permissionState,
         events: this.motion.eventCount,
         tilt: sample.x,
+        tiltY: sample.y,
         rawTilt: sample.rawGravityX,
+        rawTiltY: sample.rawGravityY,
         center: this.toys.neutralTiltX,
+        centerY: this.toys.neutralTiltY,
         candidate: this.toys._neutralCandidateX,
-        waitingForCenter: this.toys.neutralTiltX === null,
+        candidateY: this.toys._neutralCandidateY,
+        waitingForCenter: this.toys.neutralTiltX === null || this.toys.neutralTiltY === null,
         gate: this.toys.gestureGate.state,
+        axis: this.toys._activeTiltAxis,
         toys: this.toys.toys.length,
         spawned: toy ? { side: toy.side, clip: toy.clip } : null,
       }, Boolean(toy));
@@ -120,14 +125,13 @@ class Game {
       this.toys.addWobble(intensity * 0.45);
     });
 
-    this.ui.screens.start.okBtn.addEventListener('click', () => this._onOk());
     this.ui.screens.difficulty.easyBtn.addEventListener('click', () => this._onDifficulty('easy'));
     this.ui.screens.difficulty.hardBtn.addEventListener('click', () => this._onDifficulty('hard'));
     this.ui.screens.instructions.startBtn.addEventListener('click', () => this._onStartGame());
     stageEl.addEventListener('pointerdown', (e) => this._onPointerDown(e));
 
     fitStage();
-    this._goToStart();
+    this._showDifficulty();
     requestAnimationFrame((t) => this._loop(t));
 
     // Debug/test hook — harmless to leave in; not part of the play experience.
@@ -138,16 +142,11 @@ class Game {
     });
   }
 
-  _onOk() {
-    // Guard against a double tap re-firing the whole permission dance.
-    if (this._okHandled) return;
-    this._okHandled = true;
-    this.monitor.report('ok', { state: this.state }, true);
+  _activateDeviceFeatures() {
+    if (this._deviceFeaturesActivated) return;
+    this._deviceFeaturesActivated = true;
+    this.monitor.report('difficulty-selected', { state: this.state }, true);
 
-    // All three things below need the transient user-activation from this tap,
-    // so they must be KICKED OFF synchronously here (before any await). We fire
-    // them and do NOT block on them — the UI advances immediately so the button
-    // always visibly responds even if a permission promise hangs or is denied.
     startCamera(cameraEl).catch((err) => console.warn('[game] camera error:', err));
     this.toys.unlockVideos().catch((err) => console.warn('[game] video setup error:', err));
     this.motion
@@ -162,12 +161,10 @@ class Game {
       })
       .catch((err) => console.warn('[game] motion permission error:', err));
 
-    this.state = STATE.DIFFICULTY;
-    this.ui.showDifficulty();
-    this.monitor.report('difficulty', { mode: this.difficulty }, true);
   }
 
   _onDifficulty(mode) {
+    this._activateDeviceFeatures();
     this.difficulty = mode === 'hard' ? 'hard' : 'easy';
     this.toys.setDifficulty(this.difficulty);
     this.state = STATE.INSTRUCTIONS;
@@ -186,14 +183,13 @@ class Game {
     this.monitor.report('playing', { difficulty: this.difficulty }, true);
   }
 
-  _goToStart() {
-    this._okHandled = false;
+  _showDifficulty() {
     this.difficulty = 'easy';
     this.toys.setDifficulty(this.difficulty);
     this.toys.reset();
-    this.state = STATE.START;
-    this.ui.showStart();
-    this.monitor.report('start', {}, true);
+    this.state = STATE.DIFFICULTY;
+    this.ui.showDifficulty();
+    this.monitor.report('difficulty', { mode: this.difficulty }, true);
   }
 
   _goToResults() {
@@ -249,7 +245,7 @@ class Game {
     } else if (this.state === STATE.RESULTS) {
       this.resultsTimer -= dt;
       if (this.resultsTimer <= 0) {
-        this._goToStart();
+        this._showDifficulty();
       }
     }
   }
