@@ -1,8 +1,8 @@
 // Tilt-revealed toys using the split-alpha video clips.
-import { CONFIG } from './config.js?v=40';
-import { SideGestureGate } from './gesture.js?v=40';
-import { isVideoTouchLocked, videoFinished } from './media.js?v=40';
-import { stepToyPhysics } from './physics.js?v=40';
+import { CONFIG } from './config.js?v=41';
+import { SideGestureGate } from './gesture.js?v=41';
+import { isVideoTouchLocked, videoFinished } from './media.js?v=41';
+import { stepToyPhysics } from './physics.js?v=41';
 
 let toyIdCounter = 0;
 
@@ -437,11 +437,14 @@ export class ToyManager {
     const fromBottom = side === 'bottom';
     const crossAxis = vertical ? 'x' : 'y';
     const crossPosition = this._pickCrossAxisPosition(crossAxis, vertical ? hitW : hitH);
+    const verticalInset = vertical ? CONFIG.TOY_VERTICAL_EDGE_INSET_PX : 0;
     const restX = vertical
       ? crossPosition
       : (fromRight ? CONFIG.STAGE_W - hitW / 2 : hitW / 2);
     const restY = vertical
-      ? (fromBottom ? CONFIG.STAGE_H - hitH / 2 : hitH / 2)
+      ? (fromBottom
+        ? CONFIG.STAGE_H - hitH / 2 - verticalInset
+        : hitH / 2 + verticalInset)
       : crossPosition;
     const hiddenX = vertical
       ? crossPosition
@@ -492,7 +495,7 @@ export class ToyManager {
       mediaError: null,
       expiring: false,
       expireT: 0,
-      canTap: true,
+      canTap: false,
       slideSpeedMul: settings.slideSpeedMul,
       retreatSpeedMul: settings.retreatSpeedMul,
       easeMul: settings.easeMul,
@@ -557,9 +560,9 @@ export class ToyManager {
     if (!videoEl || toy.expiring || toy.grabbing) return;
 
     toy.playbackElapsed += dt;
-    if (isVideoTouchLocked(videoEl, CONFIG.TOUCH_DISABLE_BEFORE_END_SEC)) {
-      toy.canTap = false;
-    }
+    toy.canTap = toy.playbackStarted
+      && toy.appearanceElapsed >= CONFIG.TOY_TAP_DELAY_SEC
+      && !isVideoTouchLocked(videoEl, CONFIG.TOUCH_DISABLE_BEFORE_END_SEC);
 
     if (toy.playbackStarted && videoFinished(videoEl)) {
       this._beginExpireToy(toy);
@@ -631,7 +634,7 @@ export class ToyManager {
     toy.mediaRecoveryAttempts = 0;
     toy.mediaReplacementAttempts++;
     toy.mediaError = null;
-    toy.canTap = true;
+    toy.canTap = false;
     if (this._destroyTex) this._destroyTex(toy);
     this._watchPlayPromise(toy, acquired.playPromise);
     this._fillPreparedQueue();
@@ -642,7 +645,13 @@ export class ToyManager {
     let best = null;
     let bestDist = Infinity;
     for (const toy of this.toys) {
-      if (toy.grabbing || toy.expiring || !toy.canTap || !toy.playbackStarted) continue;
+      if (
+        toy.grabbing
+        || toy.expiring
+        || !toy.canTap
+        || !toy.playbackStarted
+        || toy.appearanceElapsed < CONFIG.TOY_TAP_DELAY_SEC
+      ) continue;
       if (isVideoTouchLocked(toy.videoEl, CONFIG.TOUCH_DISABLE_BEFORE_END_SEC)) {
         toy.canTap = false;
         continue;
