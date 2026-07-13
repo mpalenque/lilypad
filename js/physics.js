@@ -1,5 +1,5 @@
 // Fast bounded edge slide without overshoot.
-import { CONFIG } from './config.js?v=38';
+import { CONFIG } from './config.js?v=39';
 
 function clamp01(value) {
   return Math.max(0, Math.min(1, value));
