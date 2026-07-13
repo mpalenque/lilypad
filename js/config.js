@@ -1,6 +1,6 @@
 // Central tunable constants for Lilypad Shake.
 export const CONFIG = {
-  BUILD: 'LILYPAD four-edge tilt video build 39',
+  BUILD: 'LILYPAD four-edge tilt video build 40',
 
   STAGE_W: 1920,
   STAGE_H: 1200,

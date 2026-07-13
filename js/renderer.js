@@ -2,7 +2,7 @@
 // Each video frame is split left(color)/right(mask); mask's red channel is
 // used as alpha. Straight (non-premultiplied) alpha blending, alpha-cutoff
 // discard, optional bottom fade and horizontal mirror.
-import { CONFIG } from './config.js?v=39';
+import { CONFIG } from './config.js?v=40';
 
 const VERT_SRC = `#version 300 es
 in vec2 aPos;

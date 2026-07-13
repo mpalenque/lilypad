@@ -1,8 +1,8 @@
 // Tilt-revealed toys using the split-alpha video clips.
-import { CONFIG } from './config.js?v=39';
-import { SideGestureGate } from './gesture.js?v=39';
-import { isVideoTouchLocked, videoFinished } from './media.js?v=39';
-import { stepToyPhysics } from './physics.js?v=39';
+import { CONFIG } from './config.js?v=40';
+import { SideGestureGate } from './gesture.js?v=40';
+import { isVideoTouchLocked, videoFinished } from './media.js?v=40';
+import { stepToyPhysics } from './physics.js?v=40';
 
 let toyIdCounter = 0;
 
@@ -454,7 +454,7 @@ export class ToyManager {
         : -hitH / 2 - CONFIG.TOY_START_OFFSET_PX)
       : crossPosition;
     const settings = this._difficultyConfig();
-    const angle = vertical ? 90 : 0;
+    const angle = side === 'top' ? -90 : (side === 'bottom' ? 90 : 0);
 
     const toy = {
       id: ++toyIdCounter,
