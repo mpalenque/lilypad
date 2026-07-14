@@ -1,0 +1,21 @@
+{
+  "id": "./",
+  "name": "Lilypad Shake",
+  "short_name": "Lilypad",
+  "description": "Juego Lilypad de inclinación que funciona sin conexión.",
+  "lang": "es",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#8BA5EB",
+  "theme_color": "#8BA5EB",
+  "icons": [
+    {
+      "src": "assets/ui/lilypad-app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

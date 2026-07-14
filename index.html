@@ -6,7 +6,11 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Lilypad">
+<meta name="theme-color" content="#8BA5EB">
 <title>Lilypad Shake</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="assets/ui/lily_bg.png">
 <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
@@ -20,6 +24,20 @@
     <div>Girá el dispositivo</div>
     <span>Jugá con la pantalla en horizontal</span>
   </div>
-  <script type="module" src="js/game.js?v=42"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker
+          .register('./service-worker.js?v=43', { scope: './' })
+          .then(() => navigator.serviceWorker.ready)
+          .then(() => {
+            document.documentElement.dataset.offlineReady = 'true';
+            window.dispatchEvent(new Event('lilypad-offline-ready'));
+          })
+          .catch(() => {});
+      }, { once: true });
+    }
+  </script>
+  <script type="module" src="js/game.js?v=43"></script>
 </body>
 </html>
